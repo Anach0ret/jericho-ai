@@ -1,7 +1,6 @@
 import contextlib
 import logging
 import os
-import pty
 import signal
 import subprocess
 import sys
@@ -67,20 +66,20 @@ class TestLaunch:
     def test_does_not_wait_for_a_program_that_keeps_running(self) -> None:
         started = time.monotonic()
 
-        SubprocessRunner(settle=0.2).launch(["/usr/bin/sleep", "3"])
+        SubprocessRunner(settle=0.2).launch(["sleep", "3"])
 
         assert time.monotonic() - started < 1.5
 
     def test_program_that_fails_at_once_is_an_error(self) -> None:
         with pytest.raises(CommandError, match="exit code 1"):
-            SubprocessRunner(settle=2).launch(["/usr/bin/false"])
+            SubprocessRunner(settle=2).launch(["false"])
 
     def test_missing_program_is_an_error(self) -> None:
         with pytest.raises(CommandError):
             SubprocessRunner().launch(["/usr/bin/no-such-program-xyz"])
 
     def test_program_that_finishes_well_at_once_is_fine(self) -> None:
-        SubprocessRunner(settle=2).launch(["/usr/bin/true"])
+        SubprocessRunner(settle=2).launch(["true"])
 
 
 class TestRun:
@@ -89,7 +88,7 @@ class TestRun:
         long = "x" * 500 + "причина"
 
         with pytest.raises(CommandError) as raised:
-            SubprocessRunner().run(["/usr/bin/sh", "-c", f"echo {long}; exit 1"])
+            SubprocessRunner().run(["sh", "-c", f"echo {long}; exit 1"])
 
         assert raised.value.output == long and len(str(raised.value)) < 400
 
@@ -234,7 +233,11 @@ class TestNoTerminalInput:
     """Ревью 0.64.4 (повтор 2), №14: программа `run()` — в фоновой группе сеанса с терминалом; унаследовав stdin-терминал,
     она замирала на чтении (SIGTTIN) и падала по сроку. Неинтерактивный запуск ввода терминала не получает."""
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="терминал PTY — POSIX")
     def test_program_reading_stdin_does_not_hang_under_a_terminal(self) -> None:
+        # На Windows модуля нет: импорт здесь, а не в начале файла, — иначе не собрался бы весь файл.
+        import pty
+
         pid, terminal = pty.fork()       # потомок — вожак сеанса с этим терминалом, как `ask` в консоли
         if pid == 0:
             try:

@@ -13,6 +13,7 @@ from jericho.core.assembly.modules import load_modules, ready_modules
 from jericho.core.assembly.skills import build_skills
 from jericho.core.assembly.state import build_state
 from jericho.core.assembly.tools import build_toolset
+from jericho.core.services.paths import UserDirs
 from jericho.core.services.phrase_deadline import PhraseDeadline
 
 
@@ -84,7 +85,8 @@ class TestProject:
         home = self.discover(tmp_path, "home.settings")
 
         assert (home.project_package, home.skills_package) == ("home", "home.skills")
-        assert home.machine_files == (tmp_path / ".config/home/local.toml", tmp_path / ".config/home/secrets.toml")
+        config = UserDirs.find({}, tmp_path).config / "home"      # папка настроек по правилам ОС (на Linux ~/.config)
+        assert home.machine_files == (config / "local.toml", config / "secrets.toml")
 
     def test_machine_files_can_live_where_the_environment_says(self, tmp_path: Path) -> None:
         """Проект может называться иначе, чем папка его настроек: переезд проекта не трогает файлы машины."""

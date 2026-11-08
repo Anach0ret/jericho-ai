@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import io
 import logging
+import sys
 from collections.abc import Sequence
 
 from jericho.core.management.base import Command
@@ -23,9 +25,18 @@ def build_parser(available: Sequence[Command]) -> argparse.ArgumentParser:
 
 
 def run(available: Sequence[Command]) -> None:
+    utf8_output()
     args = build_parser(available).parse_args()
     try:
         args.handler.run(args)
     except Exception:
         logger.exception("error", extra={"data": {"command": args.subcommand}})
         raise
+
+
+def utf8_output() -> None:
+    """Вывод команд — в UTF-8 на любой ОС. На Windows перенаправленный вывод (в файл, в трубу, в CI) иначе идёт в
+    кодировке системы (cp1252), и первая же русская строка роняет команду."""
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper) and stream.encoding.replace("-", "").lower() != "utf8":
+            stream.reconfigure(encoding="utf-8")
