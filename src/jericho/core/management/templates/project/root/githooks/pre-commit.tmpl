@@ -1,0 +1,8 @@
+#!/bin/sh
+# Перед коммитом: тесты, типы, линтер и правила структуры. Включается один раз: git config core.hooksPath .githooks
+set -e
+cd "$$(git rev-parse --show-toplevel)"
+.venv/bin/python -m pytest -q
+uvx basedpyright --pythonpath .venv/bin/python src tests
+uvx ruff@0.14.0 check src tests
+.venv/bin/$command check

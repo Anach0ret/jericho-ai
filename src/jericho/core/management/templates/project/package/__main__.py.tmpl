@@ -1,0 +1,17 @@
+"""Точка входа ассистента: называет каркасу свой проект и передаёт ему управление.
+
+Команда `$command` — то же, что `manage.py` у проекта на Django: `$command ask "…"`, `$command check`.
+"""
+
+import os
+
+
+def main() -> None:
+    os.environ.setdefault("JERICHO_SETTINGS_MODULE", "$package.settings")
+    from jericho import main as run
+
+    run()
+
+
+if __name__ == "__main__":
+    main()

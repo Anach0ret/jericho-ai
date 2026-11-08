@@ -1,0 +1,24 @@
+"""Адаптер службы: единственное место, где ассистент знает, как устроена внешняя система."""
+
+from __future__ import annotations
+
+from jericho.core import CommandError, CommandRunner
+
+from $package.protocols import ${class_name}Error
+
+
+class Local$class_name:
+    """Программы запускает через `runner` ядра: один срок, одна запись в журнал, один режим «вхолостую».
+
+    Ограничение, которое должно держаться всегда, ставь здесь, а не в ручке: слои проверки стоят вокруг ручек
+    и службу не видят.
+    """
+
+    def __init__(self, runner: CommandRunner) -> None:
+        self._runner = runner
+
+    def status(self) -> str:
+        try:
+            return self._runner.run(["true"], reads=True)
+        except CommandError as error:
+            raise ${class_name}Error(str(error)) from error

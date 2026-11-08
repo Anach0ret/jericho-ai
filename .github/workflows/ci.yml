@@ -1,0 +1,84 @@
+# Проверки каркаса на каждый push и pull request — те же, что хук перед коммитом (.githooks/pre-commit),
+# и сверх них: проект из образца собирается с нуля и проходит свои тесты и `check` — так пользователь каркаса
+# начинает работу, и это должно работать на чистой машине, а не только у автора. Чужие действия — по хешу коммита:
+# тег можно передвинуть, хеш — нет.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          version: "0.12.5"
+      - name: Зависимости
+        run: uv sync --all-extras --locked
+      - name: Тесты
+        run: uv run pytest -q
+      - name: Типы
+        run: uvx basedpyright --pythonpath .venv/bin/python src tests
+      - name: Линтер
+        run: uvx ruff@0.14.0 check src tests
+
+  new-project:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          version: "0.12.5"
+      - name: Каркас
+        run: uv sync --locked
+      - name: Проект из образца
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$GITHUB_WORKSPACE/.venv/bin/jericho" startproject ci-demo
+          cd ci-demo
+          uv sync
+          uv run pytest -q
+          uv run ci_demo check
+          uv run ci_demo startskill notes
+          uv run pytest -q
+          uv run ci_demo ask "привет"
+
+  # Обычная установка, а не исходники: wheel собирается из sdist (`uv build`), ставится в пустое окружение без
+  # группы dev и extras, и проект из образца проходит там свои тесты, `check` и сценарный `ask`. Так видно, что в
+  # дистрибутиве нет пропущенных файлов и обязательного импорта необязательной библиотеки (ревью 02.11.2026, П4 №4).
+  wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          version: "0.12.5"
+      - name: Сборка sdist и wheel из него
+        run: uv build --out-dir "$RUNNER_TEMP/dist"
+      - name: Чистое окружение
+        working-directory: ${{ runner.temp }}
+        run: |
+          uv venv --python 3.14 clean
+          uv pip install --python clean/bin/python dist/*.whl
+      - name: Проект из образца на установленном каркасе
+        working-directory: ${{ runner.temp }}
+        run: |
+          clean/bin/jericho startproject wheel-demo
+          cd wheel-demo
+          # Зависимость проекта — каркас по метке git; он уже стоит из wheel, поэтому проект — без зависимостей.
+          uv pip install --python "$RUNNER_TEMP/clean/bin/python" --no-deps -e .
+          uv pip install --python "$RUNNER_TEMP/clean/bin/python" pytest
+          "$RUNNER_TEMP/clean/bin/python" -m pytest -q
+          "$RUNNER_TEMP/clean/bin/wheel_demo" check
+          "$RUNNER_TEMP/clean/bin/wheel_demo" ask "привет"
+          "$RUNNER_TEMP/clean/bin/python" -c "import jericho, sys; sys.exit('каркас не из wheel' if 'site-packages' not in jericho.__file__ else 0)"

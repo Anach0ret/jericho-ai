@@ -1,0 +1,8 @@
+from $package import $class_name
+from $package.service import ${class_name}Service
+
+
+class Test${class_name}Service:
+    def test_service_provides_what_it_declares(self) -> None:
+        assert list(${class_name}Service.provides.__annotations__) == ["return"]
+        assert $class_name.__name__ == "$class_name"

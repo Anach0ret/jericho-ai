@@ -1,0 +1,59 @@
+"""Настройки ассистента $name: что включено и с какими значениями.
+
+Уровни, от слабого к сильному: умолчания каркаса → этот файл → файлы машины (`~/.config/$package/`).
+Вариант выбирает переменная `JERICHO_CONFIGURATION`; без неё — `Live`.
+"""
+
+from __future__ import annotations
+
+from jericho.backends.scripted.settings import ScriptedSettings
+from jericho.core import AgentSettings, Settings
+
+
+class Base(Settings):
+    # Службы — общий доступ навыков к одной внешней системе. Создать: `$command startservice <имя>`.
+    INSTALLED_SERVICES: tuple[str, ...] = ()
+    # Модули ядра — то, что встаёт в путь поручения. В поставке каркаса: jericho.modules.voice (голос),
+    # jericho.modules.dialogue (память разговора), jericho.modules.journal_reader (ручка чтения журнала),
+    # jericho.modules.notes (заметки модели; нужен journal_reader), jericho.modules.tasks (задачи без человека:
+    # раздел `tasks: TasksSettings`, расписание — поле `schedule` и `$command timers install`),
+    # jericho.modules.inbox (поручения сообщениями бота: раздел `inbox: InboxSettings`, docs/inbox.md каркаса).
+    INSTALLED_MODULES: tuple[str, ...] = ()
+    # Слои вокруг поручения — модули из списка выше, у которых есть слой; первый — самый внешний.
+    TASK_MIDDLEWARE: tuple[str, ...] = ()
+    # Навыки — действия, которые выбирает модель. Создать: `$command startskill <имя>`.
+    INSTALLED_SKILLS: tuple[str, ...] = ()
+    # Общий промпт по порядку. Свой раздел — роль; остальное говорит каркас. Раздел подключённого модуля
+    # (`jericho.modules.<имя>:prompt.md`) добавляется сюда же — `$command check` напомнит, если забыть.
+    PROMPT_SECTIONS: tuple[str, ...] = (
+        "$package.settings:prompt/role.md",
+        "jericho.core.prompting:sections/skills.md",
+        "jericho.core.prompting:sections/confirmations.md",
+        "jericho.core.prompting:sections/edge_cases.md",
+        "jericho.core.prompting:sections/format.md",
+    )
+    state_name: str = "$name"      # папки состояния: ~/.local/state/$name и $$XDG_RUNTIME_DIR/$name
+    # Бэкенд «сценарий» отвечает по файлу и не требует ключа — с него начинают. Настоящая модель — одна из трёх
+    # (подробно в docs/backends.md каркаса):
+    #   jericho.backends.claude_cli     программа `claude` по подписке; раздел `claude_cli: ClaudeSettings`
+    #   jericho.backends.anthropic_api  ключ Anthropic в переменной ANTHROPIC_API_KEY; раздел `anthropic_api: AnthropicSettings`
+    #   jericho.backends.openai_api     любой адрес с протоколом OpenAI: OpenRouter, Ollama; раздел `openai_api: OpenAiSettings`
+    agent: AgentSettings = AgentSettings(backend="jericho.backends.scripted")
+    scripted: ScriptedSettings = ScriptedSettings(script="$package.settings:script.yaml")
+
+
+class Live(Base):
+    """Обычная работа."""
+
+
+class DryRun(Base):
+    """Вхолостую: ручки вызываются, но меняющие команды только записываются в журнал. Своя папка состояния."""
+
+    dry_run: bool = True
+    state_name: str = "$name-dry"
+
+
+class Eval(DryRun):
+    """Прогон проверочных фраз (`$command eval`): вхолостую и со своими папками состояния."""
+
+    state_name: str = "$name-eval"

@@ -1,0 +1,23 @@
+"""Подмена службы для тестов навыков: запоминает, что её просили, и ничего не трогает снаружи."""
+
+from __future__ import annotations
+
+from jericho.core import SharedServices
+
+from $package.protocols import $class_name
+
+
+class Fake$class_name:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def status(self) -> str:
+        self.calls.append("status")
+        return "ok"
+
+
+def shared_$name(service: object | None = None) -> SharedServices:
+    """Реестр служб с этой службой — для сборки навыка в тесте."""
+    shared = SharedServices()
+    shared.provide($class_name, service or Fake$class_name(), "$name")
+    return shared

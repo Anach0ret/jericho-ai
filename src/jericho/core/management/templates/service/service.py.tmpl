@@ -1,0 +1,20 @@
+"""Служба «$name»: что она даёт навыкам и из чего собирается."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+
+from jericho.core import CoreServices, ServiceConfig, Settings
+
+from $package.adapters.local import Local$class_name
+from $package.protocols import $class_name
+
+
+class ${class_name}Service(ServiceConfig):
+    name = "$name"
+
+    def ready(self, settings: Settings, core: CoreServices) -> None:
+        self._service = Local$class_name(core.runner)
+
+    def provides(self) -> Mapping[type, object]:
+        return {$class_name: self._service}

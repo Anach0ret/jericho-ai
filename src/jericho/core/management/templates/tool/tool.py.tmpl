@@ -1,0 +1,32 @@
+"""Ручка `$tool`."""
+
+from __future__ import annotations
+
+from jericho.core import Approval, Risk, Tool, ToolDescription, ToolRefusal, ToolRequest, ToolResult
+from pydantic import Field
+
+
+class ${class_name}Request(ToolRequest):
+    target: str = Field(description="Что модель должна сюда передать — одной строкой, с примером.")
+
+
+class $class_name(Tool[${class_name}Request]):
+    name = "$tool"
+    request_type = ${class_name}Request
+    # Класс риска — по самому тяжёлому, что ручка умеет: READ только читает, NAVIGATE открывает и переключает,
+    # CHANGE меняет поправимо, EFFECT — не отменить или уходит наружу. Здесь стоит самый строгий: понизь осознанно.
+    risk = Risk.EFFECT
+    # У EFFECT — кто спрашивает «да»: ASK — каркас перед каждым вызовом (ручке ничего делать не нужно),
+    # TOOL — сама ручка через core.confirmation, когда это нужно. Понизишь риск — строку можно убрать.
+    approval = Approval.ASK
+    description = ToolDescription(
+        when="в каких просьбах пользователя эта ручка нужна.",
+        does="что она сделает и чего не сделает.",
+        returns='{"ok": true, ...} — что в ответе и как читать его поля.',
+        refusals="коды отказов и что делать с теми, что требуют реакции.",
+    )
+
+    def _run(self, request: ${class_name}Request) -> ToolResult:
+        if not request.target:
+            raise ToolRefusal("empty_target")
+        return ToolResult.success(target=request.target)

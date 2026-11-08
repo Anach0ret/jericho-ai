@@ -1,0 +1,13 @@
+from jericho.core.testing import execute
+
+from $package.tools.$tool import $class_name, ${class_name}Request
+
+
+class Test$class_name:
+    def test_does_what_was_asked(self) -> None:
+        result = execute($class_name(), ${class_name}Request(target="пример"))
+
+        assert result.to_dict() == {"ok": True, "target": "пример"}
+
+    def test_refuses_an_empty_target(self) -> None:
+        assert execute($class_name(), {"target": ""}).error == "empty_target"

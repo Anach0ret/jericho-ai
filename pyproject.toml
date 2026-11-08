@@ -1,0 +1,69 @@
+[project]
+name = "jericho-ai"
+version = "0.64.6"
+description = "Каркас для ассистентов: модель получает набор действий, каждое проходит проверки в коде и остаётся в журнале"
+authors = [
+    { name = "Anach0ret" }
+]
+requires-python = ">=3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+# Сам каркас требует только это. Остальное — наборами: бэкенд и модули ставят своё.
+dependencies = [
+    "pydantic>=2.14",
+    "pyyaml>=6.0.3",
+    "send2trash>=1.8",
+]
+
+[project.optional-dependencies]
+claude = ["mcp>=2.3.0"]      # бэкенд «программа claude»: сервер ручек
+codex = ["mcp>=2.3.0"]       # бэкенд «программа codex»: тот же сервер ручек
+anthropic = ["anthropic>=0.70"]   # бэкенд «Anthropic API»: модель по ключу
+openai = ["openai>=2.0"]         # бэкенд «совместимый с OpenAI»: OpenRouter, Ollama, любой такой адрес
+desktop = ["dbus-fast>=2.44", "keyring>=25.0"]   # рабочий стол: уведомления с кнопками по D-Bus, связка ключей
+
+[project.urls]
+# Отсюда проект, созданный `jericho startproject`, берёт каркас: из git по метке своей версии. Имя пакета —
+# «jericho-ai»: «jericho» в PyPI занято чужим пакетом (текстовые квесты). Импорт и команда — `jericho`.
+Repository = "https://github.com/Anach0ret/jericho-ai"
+
+[project.scripts]
+jericho = "jericho:main"
+
+[tool.uv.build-backend]
+module-name = "jericho"      # пакет называется jericho-ai, а импортируется jericho
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "mcp>=2.3.0",
+    "anthropic>=0.70",
+    "openai>=2.0",
+    "dbus-fast>=2.44",
+    "keyring>=25.0",
+]
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+# Окружение проекта: без этого редактор берёт системный Python, а в нём нет ни pydantic, ни mcp.
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 150      # длину строки не проверяем (E501 не включён); число нужно только сортировке импортов
+
+[tool.ruff.lint]
+# Ошибки, порядок импортов, упрощения, изменяемые атрибуты класса без ClassVar. Автоформата нет: стиль свой.
+select = ["F", "E9", "I", "B", "SIM", "C4", "PIE", "UP", "RUF012", "RUF022", "RUF100", "PLR0402"]
+ignore = ["SIM108"]      # тернарник на полторы сотни знаков читается хуже, чем if / else
+
+[tool.ruff.lint.isort]
+known-first-party = ["jericho"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src/jericho/modules", "src/jericho/backends"]

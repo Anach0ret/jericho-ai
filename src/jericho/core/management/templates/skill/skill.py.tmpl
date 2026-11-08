@@ -1,0 +1,20 @@
+"""Навык $name: что он отдаёт ядру и из чего собирается."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any
+
+from jericho.core import CoreServices, SkillConfig, SkillSettings, Tool
+
+
+class $class_name(SkillConfig[SkillSettings]):
+    name = "$name"
+    description = $description
+
+    def ready(self, settings: SkillSettings, core: CoreServices) -> None:
+        self._settings, self._core = settings, core
+
+    def tools(self) -> Sequence[Tool[Any]]:
+        """Ручки навыка — явным списком. Новую создаёт `jericho starttool $name <имя>`, вписать её сюда нужно самому."""
+        return ()

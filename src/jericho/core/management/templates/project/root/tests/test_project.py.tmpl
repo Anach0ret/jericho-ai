@@ -1,0 +1,48 @@
+import argparse
+import logging
+import sys
+from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
+from jericho.bootstrap import build_commands
+from jericho.core.assembly.installation import Installation
+
+
+@pytest.fixture
+def installation(tmp_path: Path) -> Iterator[Installation]:
+    """Настоящий проект, но состояние и файлы машины — во временной папке."""
+    logger = logging.getLogger("jericho")
+    handlers, level, propagate = list(logger.handlers), logger.level, logger.propagate
+    environment = {
+        Installation.SETTINGS_VARIABLE: "$package.settings",
+        "XDG_STATE_HOME": str(tmp_path / "state"),
+        "XDG_RUNTIME_DIR": str(tmp_path / "run"),
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+    }
+    yield Installation.discover(environment, tmp_path, sys.executable)
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        handler.close()
+    for handler in handlers:
+        logger.addHandler(handler)
+    logger.setLevel(level)
+    logger.propagate = propagate
+
+
+class TestProject:
+    def test_assistant_is_assembled_and_passes_the_structure_checks(self, installation: Installation) -> None:
+        """То же, что `$command check`: настройки собираются, правила структуры соблюдены."""
+        commands = {command.name: command for command in build_commands(installation)}
+
+        commands["check"].run(argparse.Namespace())      # при замечаниях команда завершается с ошибкой
+
+    def test_assistant_answers_a_task_without_a_model(
+        self, installation: Installation, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Бэкенд «сценарий» отвечает по `settings/script.yaml` — ключ и сеть не нужны."""
+        commands = {command.name: command for command in build_commands(installation)}
+
+        commands["ask"].run(argparse.Namespace(phrase="привет"))
+
+        assert capsys.readouterr().out.startswith("[done]")

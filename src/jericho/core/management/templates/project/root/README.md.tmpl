@@ -1,0 +1,16 @@
+# $name
+
+Ассистент на каркасе Jericho. Каркас ставится как пакет; здесь — только то, что относится к этому ассистенту:
+настройки и роль, навыки, службы.
+
+- Команда — `$command`: `$command ask "…"`, `$command check`, `$command log`.
+- Настройки — `src/$package/settings/base.py`; роль для модели — `src/$package/settings/prompt/role.md`.
+- Навыки — `src/$package/skills/`; службы — `src/$package/services/`.
+- Как здесь работать агенту — [AGENTS.md](AGENTS.md).
+
+```bash
+uv sync
+uv run pytest -q
+uv run $command check
+uv run $command ask "привет"
+```

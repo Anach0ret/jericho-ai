@@ -1,0 +1,10 @@
+#!/bin/sh
+# Перед коммитом: тесты, типы и линтер. Правила структуры каркаса проверяет тест (ядро не импортирует ни модули, ни проект);
+# `jericho check` — команда проекта ассистента, у каркаса своего проекта нет.
+# Включается один раз: git config core.hooksPath .githooks
+set -e
+cd "$(git rev-parse --show-toplevel)"
+uv lock --check -q          # версия в pyproject.toml сменилась — uv.lock тоже (CI ставит с --locked; 30.10.2026 упал)
+.venv/bin/python -m pytest -q
+uvx basedpyright --pythonpath .venv/bin/python src tests
+uvx ruff@0.14.0 check src tests

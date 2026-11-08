@@ -1,0 +1,15 @@
+from pathlib import Path
+
+from jericho.core.testing import DEFAULT_CHECKS, InstalledSkills, Project, fake_core
+
+from $package.skill import $class_name
+
+
+class Test$class_name:
+    def test_skill_passes_the_structure_checks(self, tmp_path: Path) -> None:
+        """То же, что `jericho check`: файлы на месте, импорты по правилам, ручки вписаны и проверены тестами."""
+        skill = $class_name()
+        skill.ready(skill.settings_class(), fake_core(tmp_path))      # ручки обычно собираются в ready()
+        project = Project(skill.directory.parents[1], InstalledSkills([skill]))
+
+        assert [message for check in DEFAULT_CHECKS for message in check.run(project)] == []

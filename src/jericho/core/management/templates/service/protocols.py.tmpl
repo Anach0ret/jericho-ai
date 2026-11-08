@@ -1,0 +1,21 @@
+"""Что навыкам нужно от внешней системы, к которой даёт доступ служба."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from jericho.core import PortError
+
+
+class ${class_name}Error(PortError):
+    """Внешняя система не выполнила просьбу. `code` модель увидит в ответе ручки."""
+
+    code = "${name}_error"
+
+
+class $class_name(Protocol):
+    """То, что навык получает через `core.shared.get($class_name)`. Любая неудача — ${class_name}Error."""
+
+    def status(self) -> str:
+        """Пример метода: замени на то, что навыкам действительно нужно."""
+        ...
