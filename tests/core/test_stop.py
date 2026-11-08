@@ -1,12 +1,18 @@
 import subprocess
 import sys
+import time
+from collections.abc import Callable
 from pathlib import Path
+
+import psutil
+import pytest
 
 from jericho.core.agent.entities import ReplyStatus
 from jericho.core.agent.handle_phrase import HandlePhrase
 from jericho.core.agent.task import Outcome, Task, TaskHandler
 from jericho.core.services.adapters.file_lock import FileLock
-from jericho.core.services.stop import PhraseStopper
+from jericho.core.services.process_tree import ProcessTree
+from jericho.core.services.stop import PhraseStopper, stop_tree
 from jericho.core.testing import FakeBackend, builder
 
 
@@ -26,7 +32,7 @@ class TestStop:
     def test_nothing_to_stop_when_the_lock_is_free(self, tmp_path: Path) -> None:
         sent: list[tuple[int, int]] = []
 
-        assert PhraseStopper(FileLock(tmp_path / "phrase.lock"), kill=lambda pid, sig: sent.append((pid, sig))).stop() is None
+        assert PhraseStopper(FileLock(tmp_path / "phrase.lock"), halt=lambda pid: sent.append((pid, 0))).stop() is None
         assert sent == []
 
     def test_holder_of_the_lock_gets_the_interrupt(self, tmp_path: Path) -> None:
@@ -52,5 +58,61 @@ class TestStop:
         lock.acquire()
         sent: list[int] = []
 
-        assert PhraseStopper(FileLock(tmp_path / "phrase.lock"), kill=lambda pid, sig: sent.append(sig)).stop() is None
+        assert PhraseStopper(FileLock(tmp_path / "phrase.lock"), halt=lambda pid: sent.append(pid)).stop() is None
         assert sent == []
+
+    @pytest.mark.parametrize("halt", [None, stop_tree], ids=["system", "windows_way"])
+    def test_nothing_the_phrase_started_keeps_running(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, halt: Callable[[int], None] | None) -> None:
+        """Ревью Codex 08.11.2026, №8: держатель → программа → внук; после `stop` не живёт никто — на POSIX держатель
+        останавливает своё дерево сам (прерывание), на Windows дерево останавливает `stop`. Способ Windows
+        (`stop_tree`) проверяется и здесь — на любой ОС."""
+        monkeypatch.setattr(ProcessTree, "GRACE", 0.3)
+        lock, pids = tmp_path / "phrase.lock", tmp_path / "pids"
+        grandchild = (
+            "import os, signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            f"open({str(pids)!r}, 'a', encoding='utf-8').write(f'{{os.getpid()}}\\n'); time.sleep(30)"
+        )
+        program = f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {grandchild!r}]).wait()"
+        holder = subprocess.Popen([sys.executable, "-c", (
+            "import os, sys\n"
+            "from pathlib import Path\n"
+            "from jericho.core.services.adapters.file_lock import FileLock\n"
+            "from jericho.core.services.runner import SubprocessRunner\n"
+            f"held = FileLock(Path({str(lock)!r})); held.acquire()\n"
+            f"open({str(pids)!r}, 'a', encoding='utf-8').write(f'{{os.getpid()}}\\n')\n"
+            f"SubprocessRunner(timeout=60).run([sys.executable, '-c', {program!r}], reads=True)\n"
+        )], text=True, encoding="utf-8")
+        try:
+            started = wait_for_lines(pids, 2)
+            holder_pid, grandchild_pid = started[0], started[1]
+
+            assert PhraseStopper(FileLock(lock), halt=halt).stop() == holder_pid
+            holder.wait(timeout=10)
+
+            assert not running(holder_pid) and not running(grandchild_pid)
+        finally:
+            if holder.poll() is None:
+                holder.kill()
+
+
+def wait_for_lines(file: Path, count: int) -> list[int]:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        lines = file.read_text(encoding="utf-8").split() if file.exists() else []
+        if len(lines) >= count:
+            return [int(line) for line in lines]
+        time.sleep(0.05)
+    raise AssertionError(f"процессы не запустились: {file}")
+
+
+def running(pid: int, wait: float = 5) -> bool:
+    """Жив и не зомби — спустя `wait` секунд на завершение."""
+    deadline = time.monotonic() + wait
+    while time.monotonic() < deadline:
+        try:
+            if psutil.Process(pid).status() == psutil.STATUS_ZOMBIE:
+                return False
+        except psutil.NoSuchProcess:
+            return False
+        time.sleep(0.05)
+    return True
