@@ -9,12 +9,13 @@ from jericho.core.services.adapters.json_file import JsonStateFile
 class ReplyVault:
     """Последние ответы фраз, тронувших личные данные: `{run: {"message", "body"}}`. Журнал фраз хранит только memo.
 
-    Окно на панели показывает отсюда полный ответ, пока сеанс жив. Файл — в `$XDG_RUNTIME_DIR` (оперативная
-    память, только владелец): переписка не оседает на диске.
+    Окно на панели показывает отсюда полный ответ, пока сеанс жив. Файл — в папке сеанса: на Linux это
+    `$XDG_RUNTIME_DIR` (оперативная память, только владелец), и переписка не оседает на диске; на macOS и Windows такой
+    папки нет — файл на диске, в папке сеанса по правилам ОС.
     """
 
     KEEP = 10
-    FILE = "private-replies.json"      # в `$XDG_RUNTIME_DIR` проекта
+    FILE = "private-replies.json"      # в папке сеанса проекта
 
     def __init__(self, file: JsonStateFile) -> None:
         self._file = file

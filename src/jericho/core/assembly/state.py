@@ -31,7 +31,7 @@ class StateFiles:
     """Файлы состояния ядра. Имя папок берётся из настроек — у прогона проверочных фраз оно своё."""
 
     def __init__(self, settings: Settings, installation: Installation) -> None:
-        self.paths = Paths.under_xdg(settings.state_name, installation.environment, installation.home).for_user(installation.user)
+        self.paths = Paths.under(settings.state_name, installation.dirs).for_user(installation.user)
         self.journal = self.paths.state_dir / "journal.jsonl"
         self.eval_runs = self.paths.state_dir / "runs"
         self.confirmation = self.paths.confirmation

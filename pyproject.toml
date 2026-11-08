@@ -1,6 +1,6 @@
 [project]
 name = "jericho-ai"
-version = "0.64.7"
+version = "0.64.8"
 description = "Каркас для ассистентов: модель получает набор действий, каждое проходит проверки в коде и остаётся в журнале"
 authors = [
     { name = "Anach0ret" }
@@ -10,6 +10,8 @@ license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 # Сам каркас требует только это. Остальное — наборами: бэкенд и модули ставят своё.
 dependencies = [
+    "filelock>=4.2",
+    "platformdirs>=4.5",
     "pydantic>=2.14",
     "pyyaml>=6.0.3",
     "send2trash>=1.8",

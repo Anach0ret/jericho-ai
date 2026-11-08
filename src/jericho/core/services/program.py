@@ -21,7 +21,7 @@ class Program:
     command: tuple[str, ...]           # чем запускать: «…/python -m jericho»
     environment: Mapping[str, str]     # переменные проекта: модуль настроек, вариант, папка файлов машины
     config_dir: Path                   # файлы этой машины: ~/.config/<проект>
-    user_config_home: Path             # ~/.config — там же лежат пользовательские таймеры systemd
+    user_config_home: Path             # папка настроек ОС (на Linux ~/.config) — там же пользовательские таймеры systemd
 
     def detached(self, *arguments: str) -> tuple[str, ...]:
         """Команда ассистента как новый, свой запуск — даже из сервера ручек, который служит чужой фразе.
