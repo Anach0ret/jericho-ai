@@ -84,7 +84,9 @@ class TestJerichoMcpServer:
             request_type = WaitRequest
 
             def _run(self, request: WaitRequest) -> ToolResult:
-                time.sleep(5)
+                until = time.monotonic() + 5      # работа на Python: её срок обрывает на любой ОС
+                while time.monotonic() < until:
+                    pass
                 return ToolResult.success()
 
         server = JerichoMcpServer([Wait()], ToolDispatcher([Journal, Refusals], deadline=Deadline(0.1)))

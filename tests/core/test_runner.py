@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import ClassVar
 
+import psutil
 import pytest
 
 from jericho.core.services.process_tree import ProcessTree
@@ -103,8 +104,13 @@ class TestDescendants:
 
     @staticmethod
     def grandchild(pidfile: Path) -> list[str]:
-        """`sh` запускает внука, который не слушает TERM, и ждёт его; номер внука — в файле."""
-        return ["sh", "-c", f"(trap '' TERM; exec sleep 30) & echo $! > {pidfile}; wait"]
+        """Программа запускает внука, который не слушает TERM, и ждёт его; номер внука — в файле. На Python, а не `sh`:
+        тот же сценарий на любой ОС."""
+        inner = (
+            "import os, signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            f"open({str(pidfile)!r}, 'w', encoding='utf-8').write(str(os.getpid())); time.sleep(30)"
+        )
+        return [sys.executable, "-c", f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {inner!r}]).wait()"]
 
     @staticmethod
     def alive(pid: int) -> bool:
@@ -112,10 +118,9 @@ class TestDescendants:
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
             try:
-                state = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0]
-            except FileNotFoundError:
-                return False
-            if state == "Z":
+                if psutil.Process(pid).status() == psutil.STATUS_ZOMBIE:
+                    return False
+            except psutil.NoSuchProcess:
                 return False
             time.sleep(0.05)
         return True
@@ -159,6 +164,7 @@ class TestProcessTree:
     def short_grace(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(ProcessTree, "GRACE", 0.5)
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="группы процессов — POSIX")
     def test_stopping_the_answer_stops_what_its_runner_started(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -177,15 +183,17 @@ class TestProcessTree:
         assert not TestDescendants.alive(grandchild)
 
     def test_tool_deadline_inside_the_pause_still_kills(self, tmp_path: Path) -> None:
-        """Срок runner (0,05 с) раньше срока ручки (0,15 с): `ToolTimeout` приходит посреди паузы после TERM."""
+        """Срок runner (0,5 с) раньше срока ручки (0,8 с): `ToolTimeout` приходит посреди паузы после TERM (0,5 с).
+        Срок runner — не меньше запуска внука: внук на Python появляется за десятки миллисекунд."""
         pidfile = tmp_path / "pid"
 
-        with pytest.raises(ToolTimeout), Deadline(0.15).limit():
-            SubprocessRunner(timeout=0.05).run(TestDescendants.grandchild(pidfile), reads=True)
+        with pytest.raises(ToolTimeout), Deadline(0.8).limit():
+            SubprocessRunner(timeout=0.5).run(TestDescendants.grandchild(pidfile), reads=True)
 
         assert not TestDescendants.alive(TestDescendants.pid(pidfile))
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="отделённое на Windows не различается — договор docs/security.md «Платформы»")
 class TestLaunchedStaysAlive:
     """Ревью 07.11.2026, повтор прохода 6, №13: остановка дерева убивала и намеренно отделённое (`launch`) —
     браузер, приложение, фоновый план. Синхронное (`run`) останавливается, отделённое — живёт дальше."""
@@ -211,6 +219,8 @@ class TestLaunchedStaysAlive:
             f"runner.launch({self.LAUNCHED[program].format(file=launched_file)}); "
             f"runner.run({TestDescendants.grandchild(run_file)!r}, reads=True)"
         )
+        if program == "unreadable_environment" and sys.platform != "linux":
+            pytest.skip("prctl(PR_SET_DUMPABLE) — Linux")
         parent = subprocess.Popen([sys.executable, "-c", script], start_new_session=True, text=True, encoding="utf-8")
         launched: int | None = None
         stopped = False

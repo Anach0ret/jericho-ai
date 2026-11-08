@@ -1,5 +1,4 @@
 import logging
-import signal
 import time
 from typing import ClassVar
 
@@ -17,6 +16,13 @@ from jericho.core.tools.dispatcher import CallHandler, ToolDispatcher
 from jericho.core.tools.loader import MiddlewareLoader, MiddlewareLoadError
 from jericho.core.tools.middleware import Journal, Refusals
 from jericho.core.tools.session import CallSession
+
+
+def work(seconds: float) -> None:
+    """Работа на Python, а не ожидание: её срок ручки обрывает на любой ОС (договор — docs/security.md «Платформы»)."""
+    until = time.monotonic() + seconds
+    while time.monotonic() < until:
+        pass
 
 
 class EchoRequest(ToolRequest):
@@ -39,10 +45,10 @@ class Echo(Tool[EchoRequest]):
         if request.text == "диск":
             raise DiskError("no space left")
         if request.text == "долго":
-            time.sleep(5)
+            work(5)
         if request.text == "упрямо":
             try:
-                time.sleep(5)
+                work(5)
             except Exception:
                 return ToolResult.success(said="проглотил")
         if request.text == "сбой":
@@ -187,8 +193,7 @@ class TestDeadline:
         dispatcher = ToolDispatcher([Refusals], deadline=Deadline(0.2))
 
         assert dispatcher.call(Echo(), {"text": "привет"}).ok
-        time.sleep(0.3)      # таймер снят: сигнал после вызова не приходит
-        assert signal.getitimer(signal.ITIMER_REAL)[0] == 0
+        work(0.3)      # таймер снят: после вызова срок не срабатывает — иначе здесь вылетел бы ToolTimeout
 
     def test_broad_except_inside_the_tool_cannot_swallow_the_deadline(self) -> None:
         assert ToolDispatcher(deadline=Deadline(0.1)).call(Echo(), {"text": "упрямо"}).error == "tool_timeout"

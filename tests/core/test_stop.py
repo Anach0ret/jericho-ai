@@ -33,17 +33,19 @@ class TestStop:
         """Настоящий второй процесс держит замок: `stop` находит его по файлу замка и прерывает."""
         lock = tmp_path / "phrase.lock"
         holder = subprocess.Popen([sys.executable, "-c", (
-            "import sys, time\n"
+            "import os, sys, time\n"
             "from pathlib import Path\n"
             "from jericho.core.services.adapters.file_lock import FileLock\n"
-            f"held = FileLock(Path({str(lock)!r})); held.acquire(); print('held', flush=True)\n"
+            f"held = FileLock(Path({str(lock)!r})); held.acquire(); print(os.getpid(), flush=True)\n"
             "try:\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    sys.exit(42)\n"
         )], stdout=subprocess.PIPE, text=True, encoding="utf-8")
-        assert holder.stdout is not None and holder.stdout.readline().strip() == "held"
+        assert holder.stdout is not None
+        pid = int(holder.stdout.readline())      # свой номер: на Windows python.exe из venv — запускающая обёртка
 
-        assert FileLock(lock).holder() == holder.pid              # попытка взять занятый замок номер не стирает
-        assert PhraseStopper(FileLock(lock)).stop() == holder.pid
-        assert holder.wait(timeout=5) == 42
+        assert FileLock(lock).holder() == pid              # попытка взять занятый замок номер не стирает
+        assert PhraseStopper(FileLock(lock)).stop() == pid
+        # POSIX: SIGINT — прерывание, фраза выходит сама (код 42); Windows: процесс завершается сразу (security.md).
+        assert holder.wait(timeout=5) == 42 if sys.platform != "win32" else holder.wait(timeout=5) != 0
 
     def test_process_does_not_stop_itself(self, tmp_path: Path) -> None:
         lock = FileLock(tmp_path / "phrase.lock")

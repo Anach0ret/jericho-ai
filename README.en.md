@@ -60,7 +60,7 @@ Python 3.14 and [uv](https://docs.astral.sh/uv/); Linux for now (see Status). In
 (the name `jericho` on PyPI belongs to another package).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.12 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.13 jericho startproject my-assistant
 cd my-assistant
 git init -b main && git config core.hooksPath .githooks
 uv sync && uv run pytest -q
@@ -82,7 +82,7 @@ modules, run the assistant locally, check logic, the "yes", errors and the model
 guarantees — Linux** (elsewhere — Linux in a container): tool deadline, stopping a program tree, private files — see
 "Платформы" in [docs/security.md](docs/security.md). Linux batteries — voice, D-Bus notifications (`notify`, the
 `desktop` extra), tasks on systemd timers (`tasks`) — are optional modules: leave them out on another OS and fake
-them in tests. On Windows, stopping a program tree and `stop` are still incomplete.
+them in tests. On Windows, stopping a program tree and `stop` act at once, without asking, and detached programs are not told apart.
 
 ## License
 

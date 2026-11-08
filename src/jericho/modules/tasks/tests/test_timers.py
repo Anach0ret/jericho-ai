@@ -59,6 +59,7 @@ def systemd(tasks: dict[str, ScheduledTask], deferred: bool = False) -> list[Tim
 
 
 class TestTimers:
+    @pytest.mark.skipif(sys.platform == "win32", reason="unit-файл systemd с путём Windows — батарейка Linux")
     def test_only_scheduled_tasks_get_a_timer_and_it_is_enabled(self, tmp_path: Path) -> None:
         systemctl = Systemctl()
 
