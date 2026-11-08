@@ -1,95 +1,112 @@
 # Jericho
 
-[![CI](https://github.com/Anach0ret/jericho-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Anach0ret/jericho-ai/actions/workflows/ci.yml)
+**🇬🇧 English** · [🇷🇺 Русский](README.ru.md)
 
-**Каркас для ассистентов, которые действуют, а не только отвечают.** Модель выбирает действие из набора
-«ручек», а разрешение, согласие «да» и журнал держит код. Ассистент — отдельный проект: свои навыки, настройки
-и роль; каркас ставится в него пакетом.
+[![ci](https://github.com/Anach0ret/jericho-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Anach0ret/jericho-ai/actions/workflows/ci.yml)
+[![platforms](https://github.com/Anach0ret/jericho-ai/actions/workflows/platforms.yml/badge.svg)](https://github.com/Anach0ret/jericho-ai/actions/workflows/platforms.yml)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776ab)](pyproject.toml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-```
-поручение → промпт → модель → вызов ручки → проверки и политика риска → действие → ответ → журнал
-```
+**A Python framework for building LLM assistants that act, not just answer.**
 
-![Ассистент из руководства «Первый ассистент»: записать заметку, «да» перед стиранием, отказ на неверные параметры, проверки каркаса](docs/media/demo.gif)
+Build a personal assistant, an operations helper behind a chat bot, or a narrow one — a news analyst, an apartment
+scout. You write the tools; the framework's code decides what a call may do: a risk policy for every tool, the
+user's "yes" before anything irreversible, care with private data and foreign text, and an audit log of every call.
 
-Запись собирает `scripts/demo_cast.py` — из кода руководства [docs/first-assistant.md](docs/first-assistant.md), команды выполняются по-настоящему, без модели.
+Jericho is a framework, not a ready-made app: each assistant is its own project with its own skills, settings and
+role, and the framework is installed into it as a package. Develop on Linux, macOS or Windows; the full safety
+guarantees are for Linux ([Platforms](#platforms)). The guides are in Russian for now.
 
-[English](README.en.md) · документация — на русском.
+[Quick start](#quick-start) · [Examples](#what-you-can-build) · [Architecture](#architecture) ·
+[Security](docs/security.md) · [Docs](#documentation)
 
-## Зачем
+![An assistant from the tutorial: a note is saved, bad parameters are refused, deleting all notes waits for "yes", the journal shows each call](docs/media/demo.en.gif)
 
-Дать модели инструменты легко. Трудно сделать так, чтобы она могла **делать**, но не могла **натворить**:
-отправить не то, удалить не там, унести личное наружу по команде, спрятанной в чужой странице. В Jericho это
-решает код, а не текст в промпте:
+*A note is saved, bad parameters are refused, deleting everything waits for "yes", the journal shows each call.
+Real commands in the tutorial project; a [scripted backend](docs/backends.md) stands in for the model, the policy,
+the "yes" and the journal are the real framework ([`scripts/demo_cast.py`](scripts/demo_cast.py)).*
 
-- **У каждой ручки — класс риска.** `READ` и `NAVIGATE` идут сразу, `CHANGE` — поправимое, `EFFECT` (не отменить
-  или уходит наружу) — только после «да» пользователя. «Да» распознаёт код по фразе человека, а не модель; оно
-  действует один раз и только на названный объект. Без человека (по расписанию) `EFFECT` не выполняется — кроме
-  ручек, которые проект разрешил поимённо.
-- **Личные данные — только доверенной модели.** Поля с перепиской не пишутся в журнал (и в аварийную запись) и по
-  умолчанию достаются только основной модели; запасной — только если назвать её в `agent.private_backends`
-  ([пример](docs/backends.md#запасные-бэкенды)).
-  После личного или после файла с машины, если в той же фразе был чужой текст, вынести что-то наружу можно только
-  с «да».
-- **Чужой текст учитывается.** Страница, письмо, вывод программы помечены как чужие — указания из них не команда.
-- **Каждый вызов — в журнале**: ручка, параметры, итог, время, чьё поручение.
-- **Навыки может писать ИИ-агент.** Заготовки (`startskill`, `starttool`) и проверки структуры (`check`,
-  E001–E016) не дают молча нарушить архитектуру: правило приходит вместе с проверкой.
+## What you can build
 
-Что именно гарантируется, кем и чем проверено — [docs/security.md](docs/security.md); там же честный список того,
-чего каркас **не** обещает. Главное из него: это **не песочница** для непроверенного кода — каркас ограничивает
-модель, а код навыков доверенный: его пишет или принимает человек.
+| Assistant | What it does | Status |
+|---|---|---|
+| **Personal desktop assistant** | voice and text: windows, files, Telegram, tasks, memory, scheduled requests; notifications with Yes/No buttons | runs daily (author's private project) |
+| **Operations assistant behind a bot** | "what's up with the server?", "why does the webhook fail?" — log digests, explaining errors from the code; restarts and deploys only of what settings list, and only after "yes"; alerts without a model | runs daily (author's private project) |
+| **Narrow analyst or scout** — news analyst, apartment scout | reads sources on a schedule, filters by your criteria, writes a report; anything that leaves the machine waits for "yes" | possible with the current framework; no ready-made package |
+| **Assistant inside a service** | the service exposes its actions as tools (over its API or MCP); the user describes the outcome, the assistant turns it into tool calls on the user's behalf | the framework is still growing for it: web entry point, MCP bridge, user credentials in tools |
 
-## Где пригодится
+The tutorial assistant from the demo — notes with a "yes" before deleting — is built step by step in
+[docs/first-assistant.md](docs/first-assistant.md) (in Russian).
 
-| Сценарий | Пример |
-|---|---|
-| **Личный ассистент** на рабочем столе | голосом и текстом: окна, файлы, Telegram, дела, память, поручения по расписанию; уведомления с кнопками «Да/Нет» |
-| **Ассистент для эксплуатации** через бота | «что с сервером?», «в чём ошибка вебхука?» — разбор журналов приложений и кода; перезапуск и выкатка — только названного в настройках и после «да»; тревоги без модели |
-| **Ассистент внутри сервиса** | сервис открывает ассистенту свои действия ручками — поверх своего API или MCP. Пользователь текстом описывает, что хочет получить; ассистент раскладывает это на вызовы ручек и выполняет от его имени: читает — сразу, меняет — по правилам класса риска, необратимое — после «да» на показанный план. Пример: в таск-менеджере «заведи задачи под релиз, раздай команде, разбей на этапы» — и готовая поставка в дашборде без ручной настройки |
+## Quick start
 
-Первые два работают у автора каждый день. Третий — та же схема «модель выбирает, код разрешает», перенесённая
-в чужой сервис; для него каркас ещё растёт (вход из веба, мост к MCP, права пользователя в ручке).
-
-## Быстрый старт
-
-Нужны Python 3.14 и [uv](https://docs.astral.sh/uv/); пока — Linux (почему — в «Статусе»). Каркас ставится из репозитория по метке
-версии (имя `jericho` в PyPI занято другим пакетом).
+You need Python 3.14 and [uv](https://docs.astral.sh/uv/). Develop on Linux, macOS or Windows; the full safety
+guarantees are for Linux — see [Platforms](#platforms). The framework is installed from this repository by tag (the
+name `jericho` on PyPI belongs to another package).
 
 ```bash
 uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.15 jericho startproject my-assistant
 cd my-assistant
-git init -b main && git config core.hooksPath .githooks
-uv sync && uv run pytest -q
-uv run my_assistant ask "привет"      # бэкенд «сценарий»: без модели и без ключа
+uv sync
+uv run my_assistant ask "hello"      # the "scripted" backend: no model, no key
 ```
 
-Подключить модель по ключу — в `settings/base.py` проекта (зависимость `jericho-ai[openai]` или `jericho-ai[anthropic]`):
+The first answer comes from the project's script file (`settings/script.yaml`) and is in Russian, like the rest of
+the template; set `language = "en"` in the settings and what the framework says by itself — failures, "Cancelled",
+the Yes/No buttons — is in English, and the model is told to reply in English.
 
-```python
-from jericho.backends.openai_api.settings import OpenAiSettings
+Next:
 
-class Base(Settings):
-    agent: AgentSettings = AgentSettings(backend="jericho.backends.openai_api")
-    openai_api: OpenAiSettings = OpenAiSettings(base_url="https://openrouter.ai/api/v1", model="…", api_key_env="OPENROUTER_API_KEY")
-```
+- **Connect a model** — any OpenAI-compatible service (OpenRouter, Gemini, Ollama), the Anthropic API, or the
+  `claude` / `codex` programs on your own subscription: [docs/backends.md](docs/backends.md). For example, with
+  the `jericho-ai[openai]` extra, in `settings/base.py`:
 
-Подойдёт любой сервис с протоколом OpenAI (OpenRouter, Gemini, Ollama) или Anthropic API —
-[docs/backends.md](docs/backends.md). Дальше — первый навык пошагово: [docs/first-assistant.md](docs/first-assistant.md).
+  ```python
+  from jericho.backends.openai_api.settings import OpenAiSettings
 
-## Как выглядит ручка
+  class Base(Settings):
+      agent: AgentSettings = AgentSettings(backend="jericho.backends.openai_api")
+      openai_api: OpenAiSettings = OpenAiSettings(base_url="https://openrouter.ai/api/v1", model="…", api_key_env="OPENROUTER_API_KEY")
+  ```
+
+- **Write the first skill and tool** — `startskill`, `starttool` and the tutorial
+  [docs/first-assistant.md](docs/first-assistant.md).
+
+Tests, type checks and the pre-commit hook are for development — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## How it keeps the model in check
+
+- **Every tool has a risk class.** `READ` and `NAVIGATE` run right away, `CHANGE` is reversible, `EFFECT`
+  (irreversible or leaves the machine) runs only after the user says "yes". The "yes" is recognised by code from
+  the user's own words, not by the model; it is single-use and bound to the named action. Unattended runs
+  (scheduled tasks) never perform `EFFECT` unless the project allows a tool by name.
+- **Private data goes only to a trusted model.** Fields with private correspondence are not written to the journal
+  (crash records included) and by default reach only the main model; a fallback gets them only if listed in
+  `agent.private_backends` ([example](docs/backends.md#запасные-бэкенды)). After private data — or after a local
+  file, if the same phrase also brought foreign text — anything that leaves the machine needs a "yes".
+- **Foreign text is tracked.** Web pages, emails and program output are marked as foreign: instructions inside them
+  are not commands.
+- **Every call is journaled**: tool, parameters, outcome, timing, on whose behalf.
+- **Skills can be written by an AI agent.** Scaffolds (`startskill`, `starttool`) and structure checks (`check`,
+  E001–E016) keep the architecture from being broken silently: every rule ships with a check.
+
+What is guaranteed, by whom and how it is tested — and what is *not* promised — is in
+[docs/security.md](docs/security.md). Most importantly, this is **not a sandbox** for untrusted code: the framework
+constrains the model; skill code is trusted — written or reviewed by a human.
+
+A tool declares its contract; the framework enforces it:
 
 ```python
 class SendReport(Tool[SendReportRequest]):
     name = "send_report"
     request_type = SendReportRequest
-    risk = Risk.EFFECT            # уходит наружу: без человека — отказ
-    approval = Approval.ASK       # «да» до вызова спрашивает каркас (у EFFECT обязательно назвать — проверка E008)
+    risk = Risk.EFFECT            # leaves the machine: refused when nobody can say "yes"
+    approval = Approval.ASK       # the framework asks for "yes" before the call (EFFECT must name it — check E008)
     description = ToolDescription(
-        when="просят отправить отчёт клиенту.",
-        does="отправляет готовый отчёт письмом на адрес из карточки клиента.",
-        returns='{"ok": true, "sent_to": адрес}.',
-        refusals="no_report — отчёта ещё нет: сначала build_report.",
+        when="the user asks to send the report to a client.",
+        does="emails the finished report to the address on the client's card.",
+        returns='{"ok": true, "sent_to": address}.',
+        refusals="no_report — there is no report yet: call build_report first.",
     )
 
     def _run(self, request: SendReportRequest) -> ToolResult:
@@ -97,80 +114,91 @@ class SendReport(Tool[SendReportRequest]):
         return ToolResult.success(sent_to=address)
 ```
 
-Модель видит имя, описание и схему параметров. Неправильные параметры, ручка без загруженного навыка, `EFFECT` без
-«да», превышенный срок — отказ с кодом раньше, чем ручка что-то сделает.
+The model sees the name, the description and the parameter schema. Bad parameters, a tool whose skill isn't
+loaded, `EFFECT` without a "yes", a request whose time is already up — each is refused with a code before the tool
+does anything. A running tool that misses its deadline is cut off (`tool_timeout`): what it managed to do is unknown,
+and the model is told not to repeat the call.
 
-## Чем это не является
+## Architecture
 
-- **Не цепочка промптов и не граф агента** (LangChain, LangGraph): здесь договор ручки — класс риска, согласие,
-  журнал, — а ход поручения ведёт модель.
-- **Не просто «инструменты для модели»** (MCP, tool calling в PydanticAI и SDK провайдеров): Jericho — политика
-  поверх инструментов, которую нельзя отключить настройкой, плюс учёт чужого текста и личных данных. Сервер MCP
-  каркас поднимает сам — для бэкенда `claude_cli`.
-- **Не платформа для тысяч пользователей**: поручение — отдельный процесс, состояние — в файлах. Для себя и для
-  команды — да; для сервиса на массу людей — нет.
+```mermaid
+flowchart LR
+    U["User: CLI, voice, chat bot"] --> M["Modules, optional: dialogue, memory,<br/>tasks… — layers around a request"]
+    M --> A["Agent: phrase → prompt → model"]
+    A <--> B["Model backend<br/>scripted · Anthropic · OpenAI-compatible · claude · codex"]
+    B -- "tool call" --> D["Dispatcher: schema, risk policy,<br/>user's yes, deadline"]
+    D --> T["Tools of skills and modules"]
+    T --> S["Services: shared access<br/>to an external system"]
+    D --> J[("Journal")]
+    A --> J
+```
 
-## Статус
-
-Версия 0.x: каркас молод и ещё меняется — что публично и как меняются версии, в
-[docs/stability.md](docs/stability.md). Документация и тексты для модели — на русском; ответы
-ассистента можно перевести на английский настройкой `language = "en"`. Это личный проект: на вопросы и issues автор
-отвечает по возможности, без сроков.
-
-**Платформы.** Каркас — для очень разных ассистентов, и работают они чаще всего на сервере или в контейнере.
-Поэтому два уровня. **Разработка — на Linux, macOS и Windows:** создать проект, писать навыки, службы и модули,
-запускать ассистента локально, проверять логику, «да», ошибки и работу с моделью, гонять тесты. **Полные гарантии
-безопасности — Linux** (на другой машине — Linux в контейнере): срок ручки, остановка дерева программ, закрытые
-файлы — что где обещано, в [docs/security.md](docs/security.md) «Платформы». Батарейки под Linux — голос,
-уведомления по D-Bus (`notify`, extra `desktop`), задачи на таймерах systemd (`tasks`) — необязательные модули: на
-другой ОС их не включают, а в тестах подменяют. На Windows остановка дерева программ и `stop` — сразу, без просьбы, и отделённое не различается.
-
-## Что здесь
-
-| Папка | Что в ней |
-|---|---|
-| `src/jericho/core/` | ручка и политика вокруг её вызова, навык, сценарий поручения, промпт, настройки и сборка, журнал, подтверждения, проверки, прогон фраз |
-| `src/jericho/modules/` | модули — необязательное, что встаёт в путь поручения: `voice`, `dialogue`, `memory`, `notes`, `journal_reader`, `tasks`, `plans`, `playbooks`, `inbox`, `files`, `search`, `scripts` |
-| `src/jericho/backends/` | бэкенды модели: `scripted` — без модели, `anthropic_api` и `openai_api` — по ключу, `claude_cli` — программа `claude` по вашей подписке |
-
-Проект называет в настройках, что включено:
+The project lists in its settings what is switched on:
 
 ```python
 class Base(Settings):
-    INSTALLED_SERVICES: tuple[str, ...] = ("my_assistant.services.windows",)   # общий доступ навыков к одной внешней системе
+    INSTALLED_SERVICES: tuple[str, ...] = ("my_assistant.services.windows",)   # shared access to one external system
     INSTALLED_MODULES: tuple[str, ...] = ("jericho.modules.voice", "jericho.modules.dialogue")
-    TASK_MIDDLEWARE: tuple[str, ...] = ("jericho.modules.dialogue",)            # слои вокруг поручения, по порядку
+    TASK_MIDDLEWARE: tuple[str, ...] = ("jericho.modules.dialogue",)            # layers around a request, in order
     INSTALLED_SKILLS: tuple[str, ...] = ("my_assistant.skills.desktop",)
     PROMPT_SECTIONS: tuple[str, ...] = ("my_assistant.settings:prompt/role.md", "jericho.core.prompting:sections/skills.md", ...)
     agent: AgentSettings = AgentSettings(backend="jericho.backends.anthropic_api")
 ```
 
-Команды у любого проекта: `ask` (поручение текстом), `stop`, `prompt`, `log`, `status`, `check`, `eval`,
-`startskill`, `starttool`, `startservice`. С модулем `tasks` — `task <имя>` и `timers install|list|remove`.
+| Folder | What's inside |
+|---|---|
+| `src/jericho/core/` | the tool and the policy around its call, skills, the request flow, prompt, settings and assembly, journal, confirmations, checks, phrase evals |
+| `src/jericho/modules/` | optional modules that join the request flow: `voice`, `dialogue`, `memory`, `notes`, `journal_reader`, `tasks`, `plans`, `playbooks`, `inbox`, `files`, `search`, `scripts` |
+| `src/jericho/backends/` | model backends: `scripted` — no model; `anthropic_api` and `openai_api` — by key; `claude_cli` and `codex_cli` — the `claude` / `codex` programs on your subscription |
 
-## Документы
+Every project gets the commands `ask`, `stop`, `model`, `prompt`, `log`, `status`, `check`, `eval`, `startskill`,
+`starttool`, `startservice`; with the `tasks` module also `task <name>` and `timers install|list|remove`.
 
-- **Первый ассистент — пошагово:** [docs/first-assistant.md](docs/first-assistant.md)
-- **Модель безопасности:** [docs/security.md](docs/security.md) · **где что решено:** [docs/decisions.md](docs/decisions.md)
-- **Что публично и как меняются версии:** [docs/stability.md](docs/stability.md)
-- Договор ручки — [docs/tools.md](docs/tools.md) · правила структуры — [docs/checks.md](docs/checks.md) ·
-  бэкенды — [docs/backends.md](docs/backends.md) · проверочные фразы — [docs/evals.md](docs/evals.md) ·
-  задачи без человека — [docs/tasks.md](docs/tasks.md) · поручения через бота — [docs/inbox.md](docs/inbox.md)
-- Как сообщить об уязвимости — [SECURITY.md](SECURITY.md) · как предложить изменение — [CONTRIBUTING.md](CONTRIBUTING.md)
+### What Jericho is not
 
-## Проверки
+- **Not a prompt chain or an agent graph.** The model drives the request; Jericho owns the contract of each tool —
+  risk class, consent, journal.
+- **Not just a way to give a model tools.** Tool calling and MCP connect tools to a model; Jericho adds a policy on
+  top of the tools that settings can't switch off, plus tracking of foreign text and private data. (For the `claude`
+  and `codex` backends the framework runs its own MCP server with the project's tools.)
+- **Not a platform for thousands of users.** Each request is a separate process, state lives in files. For yourself
+  and a team — yes; for a mass-market service — no.
 
-```bash
-uv sync --all-extras
-uv run pytest -q
-uvx basedpyright
-uvx ruff@0.14.0 check src tests
-```
+## Platforms
 
-Хук перед коммитом — [.githooks/pre-commit](.githooks/pre-commit), включается один раз:
-`git config core.hooksPath .githooks`. В GitHub Actions — то же плюс проект из образца с нуля.
+Assistants built on Jericho mostly run on a server or in a container, so there are two levels:
 
-## Лицензия
+- **Development — Linux, macOS and Windows.** Create a project, write skills, services and modules, run the
+  assistant locally, check the logic, the "yes", errors and the model, run tests. CI runs the framework's tests on
+  all three.
+- **Full safety guarantees — Linux** (on another machine — Linux in a container): tool deadline, stopping a program
+  tree, private files. A local run on macOS or Windows does not prove them. The table of what holds where is
+  "Платформы" in [docs/security.md](docs/security.md#платформы).
 
-[Apache License 2.0](LICENSE). Бэкенд `claude_cli` работает через вашу подписку Claude — только для вашего личного
-ассистента; условия Anthropic — в [docs/backends.md](docs/backends.md#подписка-claude-и-условия-anthropic).
+Linux batteries — voice, D-Bus notifications (`notify`, the `desktop` extra), tasks on systemd timers (`tasks`) —
+are optional modules: leave them out on another OS and fake them in tests.
+
+## Status
+
+Version 0.x: young and still changing; what is public and how versions change is in
+[docs/stability.md](docs/stability.md). The documentation and the core prompt are in **Russian** for now; with
+`language = "en"` the assistant replies in English, and "yes"/"no" ("okay", "go ahead", "nope"…) are understood in
+both languages either way. A personal project: issues are answered when possible, no guarantees on timing.
+
+## Documentation
+
+All documents are in Russian.
+
+- **First assistant, step by step:** [docs/first-assistant.md](docs/first-assistant.md)
+- **Security model:** [docs/security.md](docs/security.md) · **decisions index:** [docs/decisions.md](docs/decisions.md)
+- **What is public and how versions change:** [docs/stability.md](docs/stability.md)
+- Tool contract — [docs/tools.md](docs/tools.md) · structure checks — [docs/checks.md](docs/checks.md) ·
+  backends — [docs/backends.md](docs/backends.md) · eval phrases — [docs/evals.md](docs/evals.md) ·
+  unattended tasks — [docs/tasks.md](docs/tasks.md) · requests through a bot — [docs/inbox.md](docs/inbox.md)
+- Reporting a vulnerability — [SECURITY.md](SECURITY.md) · contributing — [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## License
+
+[Apache License 2.0](LICENSE). The `claude_cli` backend works through your own Claude subscription — for your
+personal assistant only; Anthropic's terms are in
+[docs/backends.md](docs/backends.md#подписка-claude-и-условия-anthropic). For anything other people use, use an API key.
