@@ -5,8 +5,16 @@
 
 ## Порядок
 
-1. `uv sync --all-extras` и один раз `git config core.hooksPath .githooks` — хук перед коммитом гоняет тесты,
-   типы и линтер.
+1. `uv sync --all-extras` и один раз `git config core.hooksPath .githooks` — хук перед коммитом
+   ([.githooks/pre-commit](.githooks/pre-commit)) гоняет тесты, типы и линтер. Вручную то же:
+
+   ```bash
+   uv run pytest -q
+   uvx basedpyright
+   uvx ruff@0.14.0 check src tests
+   ```
+
+   В GitHub Actions — то же плюс проект из образца с нуля (`ci.yml`) и macOS/Windows (`platforms.yml`).
 2. Правила устройства — в [AGENTS.md](AGENTS.md): ограничение держит код, а не текст для модели; новое правило для
    проектов приходит вместе с проверкой в `core/checks/` и строкой в `docs/checks.md`; каркас не знает слов
    предметной области; стандартное вместо самописного.
