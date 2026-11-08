@@ -345,7 +345,7 @@ wheels = [
 
 [[package]]
 name = "jericho-ai"
-version = "0.64.6"
+version = "0.64.7"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
