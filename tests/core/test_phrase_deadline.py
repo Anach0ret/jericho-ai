@@ -193,7 +193,7 @@ class TestSeparateLaunchHasItsOwnDeadline:
         command = program.detached("import os; print(os.environ.get('JERICHO_DEADLINE'), os.environ.get('JERICHO_RUN'))")
         environment = {**os.environ, PhraseDeadline.VARIABLE: repr(time.time() - 1), Program.RUN_VARIABLE: "run-1"}
 
-        printed = subprocess.run(command, env=environment, capture_output=True, text=True, check=True).stdout.split()
+        printed = subprocess.run(command, env=environment, capture_output=True, text=True, check=True, encoding="utf-8").stdout.split()
 
         assert printed == ["None", "None"]
 

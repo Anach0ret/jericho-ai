@@ -68,14 +68,14 @@ class TestTimers:
         assert change.installed == ("task-morning",)
         assert sorted(path.name for path in units.iterdir()) == ["home-task-morning.service", "home-task-morning.timer"]
         assert systemctl.calls[-1] == ["systemctl", "--user", "enable", "--now", "home-task-morning.timer"]
-        service = (units / "home-task-morning.service").read_text()
+        service = (units / "home-task-morning.service").read_text(encoding="utf-8")
         assert 'Environment="JERICHO_SETTINGS_MODULE=home.settings"' in service
         assert service.rstrip().endswith(f'"{sys.executable}" "-m" "jericho" "task" "morning"')
 
     def test_timer_of_a_task_that_lost_its_schedule_is_removed_and_foreign_units_stay(self, tmp_path: Path) -> None:
         timers, units = SystemdUserTimers(program(tmp_path), Systemctl(), unit_dir(tmp_path)), tmp_path / ".config/systemd/user"
         timers.install(systemd(MORNING))
-        (units / "home-task-mine.timer").write_text("[Timer]\n")        # написан руками — не наш
+        (units / "home-task-mine.timer").write_text("[Timer]\n", encoding="utf-8")        # написан руками — не наш
 
         change = timers.install(systemd({"manual": ScheduledTask(text="вручную")}))
 
@@ -95,8 +95,8 @@ class TestTimers:
 
         units = tmp_path / ".config/systemd/user"
         assert change.installed == ("task-morning", "due")
-        assert "OnCalendar=*:*:00\nPersistent=true" in (units / "home-due.timer").read_text()
-        service = (units / "home-due.service").read_text()
+        assert "OnCalendar=*:*:00\nPersistent=true" in (units / "home-due.timer").read_text(encoding="utf-8")
+        service = (units / "home-due.service").read_text(encoding="utf-8")
         assert 'ExecCondition="/usr/bin/python3" "-m" "jericho.modules.tasks.peek" "/state/tasks/deferred.json"' in service
         assert service.rstrip().endswith('"jericho" "due"')
 
@@ -120,7 +120,7 @@ class TestTimers:
         units = tmp_path / ".config/systemd/user"
         verified = subprocess.run(
             ["systemd-analyze", "--user", "verify", *(str(units / f"home-{unit}.{kind}") for unit in ("task-morning", "due") for kind in ("timer", "service"))],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, check=False, encoding="utf-8"
         )
         assert verified.returncode == 0, verified.stderr
 
@@ -129,13 +129,13 @@ def test_file_of_the_same_name_written_by_hand_is_not_overwritten(tmp_path: Path
     """Ревью R13: метка проверялась только при снятии — установка молча заменяла чужой файл."""
     units = tmp_path / ".config/systemd/user"
     units.mkdir(parents=True)
-    (units / "home-task-morning.service").write_text("[Service]\nExecStart=/my/own\n")
+    (units / "home-task-morning.service").write_text("[Service]\nExecStart=/my/own\n", encoding="utf-8")
     systemctl = Systemctl()
 
     with pytest.raises(TimersError, match="home-task-morning.service"):
         SystemdUserTimers(program(tmp_path), systemctl, unit_dir(tmp_path)).install(systemd(MORNING))
 
-    assert (units / "home-task-morning.service").read_text() == "[Service]\nExecStart=/my/own\n"
+    assert (units / "home-task-morning.service").read_text(encoding="utf-8") == "[Service]\nExecStart=/my/own\n"
     assert systemctl.calls == [] and not (units / "home-task-morning.timer").exists()
 
 
@@ -208,7 +208,7 @@ class TestDryRun:
 
     def files(self, tmp_path: Path) -> dict[str, str]:
         folder = tmp_path / ".config/systemd/user"
-        return {path.name: path.read_text() for path in sorted(folder.iterdir())} if folder.is_dir() else {}
+        return {path.name: path.read_text(encoding="utf-8") for path in sorted(folder.iterdir())} if folder.is_dir() else {}
 
     def test_install_writes_nothing(self, tmp_path: Path) -> None:
         change = self.dry(tmp_path).install(systemd(MORNING))

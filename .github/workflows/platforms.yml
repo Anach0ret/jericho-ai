@@ -30,11 +30,14 @@ jobs:
         with:
           version: "0.12.5"
       - name: Импорт ядра без extras
+        # --no-dev: группа dev ставит бэкенды и desktop — без него шаг видел бы их и проверял не то, что обещает.
         run: |
-          uv sync --locked
-          uv run python -c "import jericho.core, jericho.core.testing, jericho.backends.scripted"
+          uv sync --locked --no-dev
+          uv run --no-sync python -c "import jericho.core, jericho.core.testing, jericho.backends.scripted"
       - name: Тесты
         if: ${{ !cancelled() }}
+        env:
+          PYTHONWARNDEFAULTENCODING: "1"     # файл без encoding — ошибка теста (pyproject.toml, filterwarnings)
         run: |
           uv sync --all-extras --locked
           uv run pytest -q

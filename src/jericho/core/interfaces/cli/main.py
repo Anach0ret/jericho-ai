@@ -35,8 +35,9 @@ def run(available: Sequence[Command]) -> None:
 
 
 def utf8_output() -> None:
-    """Вывод команд — в UTF-8 на любой ОС. На Windows перенаправленный вывод (в файл, в трубу, в CI) иначе идёт в
-    кодировке системы (cp1252), и первая же русская строка роняет команду."""
-    for stream in (sys.stdout, sys.stderr):
+    """Ввод и вывод команд — в UTF-8 на любой ОС. На Windows перенаправленный вывод (в файл, в трубу, в CI) иначе идёт
+    в кодировке системы (cp1252), и первая же русская строка роняет команду; ввод — так же: `answer --wait` читает
+    задания из трубы, в которую `inbox` пишет UTF-8."""
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper) and stream.encoding.replace("-", "").lower() != "utf8":
             stream.reconfigure(encoding="utf-8")

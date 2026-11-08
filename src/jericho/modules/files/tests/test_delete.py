@@ -55,7 +55,7 @@ class TestDelete:
         """Время папки меняют только её прямые записи — поэтому согласие на папку помнит и всё под ней (П3a №12)."""
         request = {"paths": ["project"]}
         execute(Delete(make_access(), trash(tree)), request)
-        (tree / "docs" / "project" / "node_modules" / "lib" / "новое.md").write_text("появилось после вопроса")
+        (tree / "docs" / "project" / "node_modules" / "lib" / "новое.md").write_text("появилось после вопроса", encoding="utf-8")
         gate = ConfirmationGate(store, "run-2")
 
         result = say_yes(gate, Delete(make_access(gate=gate), trash(tree)))

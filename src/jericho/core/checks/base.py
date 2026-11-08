@@ -73,8 +73,9 @@ class Project:
         return sorted(path for path in root.iterdir() if (path / "service.py").exists())
 
     def location(self, file: Path) -> str:
-        """Путь для сообщения: от папки пакета, если файл в ней, иначе как есть."""
-        return str(file.relative_to(self.package_dir)) if file.is_relative_to(self.package_dir) else str(file)
+        """Путь для сообщения: от папки пакета, если файл в ней, иначе как есть. С «/» на любой ОС: сообщение одно и то
+        же для человека и модели, и Windows такой путь понимает."""
+        return file.relative_to(self.package_dir).as_posix() if file.is_relative_to(self.package_dir) else file.as_posix()
 
 
 class Check(Protocol):

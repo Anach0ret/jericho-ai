@@ -57,7 +57,7 @@
 версии (имя `jericho` в PyPI занято другим пакетом).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.9 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.11 jericho startproject my-assistant
 cd my-assistant
 git init -b main && git config core.hooksPath .githooks
 uv sync && uv run pytest -q

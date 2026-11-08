@@ -260,10 +260,10 @@ class TestProcessAnswerer:
         answerer.prepare([OWNER])
 
         assert answerer.answer(OWNER, tmp_path / "r1.json") is True
-        assert seen.read_text() == f"{OWNER} answer --wait {tmp_path / 'r1.json'}\n"
+        assert seen.read_text(encoding="utf-8") == f"{OWNER} answer --wait {tmp_path / 'r1.json'}\n"
         assert answerer._ready[OWNER].poll() is None      # pyright: ignore[reportPrivateUsage] — следующий уже ждёт
         answerer.close()
-        assert seen.read_text().count("\n") == 1           # закрытый stdin — «запросов не будет»: ждущий вышел молча
+        assert seen.read_text(encoding="utf-8").count("\n") == 1           # закрытый stdin — «запросов не будет»: ждущий вышел молча
 
     def test_failure_and_timeout_are_false(self, tmp_path: Path) -> None:
         failing = self.answerer("import sys; sys.stdin.readline(); raise SystemExit(3)")
@@ -289,7 +289,7 @@ class TestProcessAnswerer:
         assert slow.answer(OWNER, tmp_path / "r1.json") is False
         slow.close()
 
-        pid = int(pidfile.read_text())
+        pid = int(pidfile.read_text(encoding="utf-8"))
         time.sleep(0.3)
         stat = Path(f"/proc/{pid}/stat")
         assert not stat.exists() or stat.read_text().rsplit(")", 1)[1].split()[0] == "Z"

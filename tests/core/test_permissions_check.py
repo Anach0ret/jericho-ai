@@ -18,7 +18,7 @@ class TestFilesArePrivate:
         (root / "telegram").mkdir(parents=True, mode=0o755)
         os.chmod(root, 0o700)
         session = root / "telegram" / "home.session"
-        session.write_text("ключ")
+        session.write_text("ключ", encoding="utf-8")
         os.chmod(session, 0o644)
 
         problems = found(root)
@@ -30,7 +30,7 @@ class TestFilesArePrivate:
         root = tmp_path / "state"
         root.mkdir(mode=0o700)
         os.chmod(root, 0o700)
-        (root / "phrase.lock").write_text("")
+        (root / "phrase.lock").write_text("", encoding="utf-8")
         os.chmod(root / "phrase.lock", 0o664)
 
         assert found(root, tmp_path / "missing") == []

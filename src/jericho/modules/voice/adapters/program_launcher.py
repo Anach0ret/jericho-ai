@@ -26,6 +26,6 @@ class ProgramAnswerLauncher:
         if question:
             arguments += ["--question", question]
         environment = {**os.environ, **self._program.environment}
-        code = subprocess.run(arguments, input=text, text=True, env=environment, check=False).returncode
+        code = subprocess.run(arguments, input=text, text=True, encoding="utf-8", env=environment, check=False).returncode
         if code:
             logger.warning("voice", extra={"data": {"answer": action, "exit_code": code}})

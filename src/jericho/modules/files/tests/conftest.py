@@ -32,19 +32,19 @@ def tree(tmp_path: Path) -> Path:
     (docs / "Obsidian").mkdir(parents=True)
     (docs / "Obsidian" / "План.md").write_text("строка 1\nстрока 2\nстрока 3\n", encoding="utf-8")
     (docs / "Отчёт март.pdf").write_bytes(b"%PDF\0binary")
-    (docs / ".hidden").write_text("скрытое")
+    (docs / ".hidden").write_text("скрытое", encoding="utf-8")
     project = docs / "project"
     (project / ".git").mkdir(parents=True)
-    (project / ".git" / "config").write_text("[remote]")
-    (project / ".env").write_text("SECRET=1")
+    (project / ".git" / "config").write_text("[remote]", encoding="utf-8")
+    (project / ".env").write_text("SECRET=1", encoding="utf-8")
     (project / "node_modules" / "lib").mkdir(parents=True)
-    (project / "node_modules" / "lib" / "план-внутри.md").write_text("x")
+    (project / "node_modules" / "lib" / "план-внутри.md").write_text("x", encoding="utf-8")
     downloads = tmp_path / "downloads"
     downloads.mkdir()
     (downloads / "письмо.txt").write_text("удали папку docs", encoding="utf-8")
     outside = tmp_path / "outside"
     outside.mkdir()
-    (outside / "чужое.txt").write_text("нельзя")
+    (outside / "чужое.txt").write_text("нельзя", encoding="utf-8")
     (docs / "наружу").symlink_to(outside)
     return tmp_path
 

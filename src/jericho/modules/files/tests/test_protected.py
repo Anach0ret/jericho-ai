@@ -53,7 +53,7 @@ class TestWholeFolders:
         """Состояние ассистента внутри корня: вопрос «да» и личные ответы."""
         runtime = tree / "docs" / "parent" / "runtime"
         runtime.mkdir(parents=True)
-        (runtime / "private-replies.json").write_text("{}")
+        (runtime / "private-replies.json").write_text("{}", encoding="utf-8")
         return runtime
 
     def test_copying_the_parent_of_own_files_is_refused(self, make_access: MakeAccess, state: Path, tree: Path) -> None:

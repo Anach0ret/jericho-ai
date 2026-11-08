@@ -318,7 +318,7 @@ class TestStatusFile:
         assert board.current() == {"state": "idle", "detail": ""}          # процесс фразы упал — срок вышел
 
     def test_unwritable_place_does_not_break_the_phrase(self, tmp_path: Path) -> None:
-        (tmp_path / "file").write_text("")
+        (tmp_path / "file").write_text("", encoding="utf-8")
         StatusFile(tmp_path / "file" / "voice.json", {}).set(VoiceState.IDLE)
 
 
@@ -397,21 +397,21 @@ class TestHyprwhsprRecognizer:
         runner = Runner("открой портфолио")
 
         assert HyprwhsprRecognizer(runner, Path("/bin/hyprwhspr")).listen() == "открой портфолио"
-        assert runner.commands == [["/bin/hyprwhspr", "record", "capture"]]
+        assert runner.commands == [[str(Path("/bin/hyprwhspr")), "record", "capture"]]
 
     def test_stop_ends_the_recording_like_a_released_key(self) -> None:
         runner = Runner()
 
         HyprwhsprRecognizer(runner, Path("/bin/hyprwhspr")).stop()
 
-        assert runner.commands == [["/bin/hyprwhspr", "record", "stop"]]
+        assert runner.commands == [[str(Path("/bin/hyprwhspr")), "record", "stop"]]
 
     def test_timeout_cancels_the_recording(self) -> None:
         runner = Runner(fail_on="capture")
 
         with pytest.raises(SpeechRecognizerError):
             HyprwhsprRecognizer(runner, Path("/bin/hyprwhspr")).listen()
-        assert runner.commands[-1] == ["/bin/hyprwhspr", "record", "cancel"]
+        assert runner.commands[-1] == [str(Path("/bin/hyprwhspr")), "record", "cancel"]
 
 
 class TestFileLock:

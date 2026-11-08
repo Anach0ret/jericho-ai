@@ -54,7 +54,7 @@ class TestClaudeCliBackend:
 
         command = runner.command
         assert runner.stdin == "открой портфолио" and "открой портфолио" not in command
-        assert command[:2] == ["/bin/claude", "-p"]
+        assert command[:2] == [str(Path("/bin/claude")), "-p"]
         assert command[command.index("--system-prompt") + 1] == "ПРОМПТ"
         assert command[command.index("--tools") + 1] == ""
 

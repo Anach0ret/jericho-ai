@@ -36,13 +36,19 @@ class FileLock:
             if time.monotonic() >= deadline:
                 return False
             self._sleep(self.POLL)
-        self._write_holder()
+        try:
+            self._write_holder()
+        except BaseException:
+            self._lock.release(force=True)      # номер не записан — замок не держим: иначе он занят до конца процесса
+            raise
         return True
 
     def release(self) -> None:
         if self._lock.is_locked:
-            self._holder_file.unlink(missing_ok=True)
-            self._lock.release(force=True)
+            try:
+                self._holder_file.unlink(missing_ok=True)
+            finally:
+                self._lock.release(force=True)      # и когда номер не удалился: замок отдаётся всегда (ревью Codex №6)
 
     def holder(self) -> int | None:
         if not self._path.exists():

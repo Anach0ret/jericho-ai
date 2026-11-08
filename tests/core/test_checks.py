@@ -37,7 +37,7 @@ class TestStructureChecks:
     def test_core_does_not_import_skills_or_the_project(self, tmp_path: Path) -> None:
         (tmp_path / "core" / "tools").mkdir(parents=True)
         (tmp_path / "core" / "tools" / "bad.py").write_text(
-            "from jericho.skills.desktop.entities import Window\nimport jericho.bootstrap\nfrom jericho.core import Tool\n"
+            "from jericho.skills.desktop.entities import Window\nimport jericho.bootstrap\nfrom jericho.core import Tool\n", encoding="utf-8"
         )
 
         found = texts(CoreImports().run(Project(tmp_path, InstalledSkills([]))))
@@ -50,7 +50,7 @@ class TestStructureChecks:
     def test_relative_imports_out_of_the_core_are_caught_too(self, tmp_path: Path) -> None:
         """Без пакета и папки ядра относительный импорт не переводился в полное имя и проходил (ревью 02.11.2026, П1 №6)."""
         (tmp_path / "core" / "assembly").mkdir(parents=True)
-        (tmp_path / "core" / "assembly" / "agent.py").write_text("from ...backends import scripted\nfrom ..tools import tool\n")
+        (tmp_path / "core" / "assembly" / "agent.py").write_text("from ...backends import scripted\nfrom ..tools import tool\n", encoding="utf-8")
 
         found = texts(CoreImports().run(Project(tmp_path, InstalledSkills([]))))
 
@@ -87,7 +87,7 @@ class TestStructureChecks:
         (service / "service.py").write_text(
             "from jericho.core import ServiceConfig\nfrom home.services.windows.entities import Window\n"
             "from home.skills.desktop.entities import Editor\nfrom jericho.core.tools.tool import Tool\n"
-            "from jericho.modules.notes.notebook import Notebook\n"
+            "from jericho.modules.notes.notebook import Notebook\n", encoding="utf-8"
         )
 
         found = texts(ServiceImports().run(Project(tmp_path / "home", InstalledSkills([]))))
@@ -196,7 +196,7 @@ class TestStructureChecks:
     def test_tool_inside_a_service_is_found(self, tmp_path: Path) -> None:
         service = tmp_path / "home" / "services" / "mail"
         service.mkdir(parents=True)
-        (service / "service.py").write_text("class Send(Tool[Request]):\n    pass\nrules = Allowlist('x')\n")
+        (service / "service.py").write_text("class Send(Tool[Request]):\n    pass\nrules = Allowlist('x')\n", encoding="utf-8")
 
         found = texts(NoToolsInServices().run(Project(tmp_path / "home", InstalledSkills([]))))
 
@@ -208,7 +208,7 @@ class TestStructureChecks:
 
         skill = tmp_path / "skills" / "mail"
         (skill / "tools").mkdir(parents=True)
-        (skill / "tools" / "send.py").write_text("from ...diary import notes\nfrom ..adapters import smtp\nfrom . import helpers\n")
+        (skill / "tools" / "send.py").write_text("from ...diary import notes\nfrom ..adapters import smtp\nfrom . import helpers\n", encoding="utf-8")
 
         modules = imported_modules(skill / "tools" / "send.py", "home.skills.mail", skill)
 
@@ -218,7 +218,7 @@ class TestStructureChecks:
         """Ревью R12: E003 смотрел только на `jericho.*` и не видел импорт ядром `home.settings`."""
         core = tmp_path / "framework" / "core"
         core.mkdir(parents=True)
-        (core / "leak.py").write_text("from home.settings import Base\n")
+        (core / "leak.py").write_text("from home.settings import Base\n", encoding="utf-8")
         project = Project(tmp_path / "home", InstalledSkills([]), framework_dir=core)
 
         assert [message.text for message in CoreImports().run(project)] == ["ядро импортирует `home.settings`"]
@@ -228,7 +228,7 @@ class TestStructureChecks:
 
         tests = tmp_path / "tests"
         tests.mkdir()
-        (tests / "test_x.py").write_text("from pkg.tools import Listed  # Listed проверим потом\n")
+        (tests / "test_x.py").write_text("from pkg.tools import Listed  # Listed проверим потом\n", encoding="utf-8")
 
         assert ToolsAreTested._used_names(tests) == set()  # pyright: ignore[reportPrivateUsage]
 

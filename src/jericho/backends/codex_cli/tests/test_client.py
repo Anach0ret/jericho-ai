@@ -65,7 +65,7 @@ class TestCommand:
         backend(runner).ask("ПРОМПТ", "открой портфолио")
 
         command = runner.command
-        assert command[:3] == ["/bin/codex", "exec", "--json"] and command[-1] == "-"
+        assert command[:3] == [str(Path("/bin/codex")), "exec", "--json"] and command[-1] == "-"
         assert runner.stdin == "открой портфолио" and "открой портфолио" not in command
         for flag in ("--ignore-user-config", "--ignore-rules", "--ephemeral"):
             assert flag in command

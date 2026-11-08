@@ -56,7 +56,7 @@ class TestUnpack:
         result = execute(Unpack(access, StandardArchiver(), LIMIT, 100), {"archive": "фото.zip"})
 
         assert result.ok and result.data["files"] == 2 and result.data["top"] == ["a.txt", "внутри"]
-        assert (tree / "docs" / "фото" / "внутри" / "b.txt").read_text() == "2"
+        assert (tree / "docs" / "фото" / "внутри" / "b.txt").read_text(encoding="utf-8") == "2"
 
     @pytest.mark.parametrize("name", ["../evil.txt", "a/../../evil.txt", "/etc/evil", "C:/evil.txt"])
     def test_a_path_leading_out_refuses_the_whole_archive(self, access: FileAccess, tree: Path, name: str) -> None:
@@ -182,7 +182,7 @@ class TestDownloads:
 class TestPack:
     @pytest.mark.parametrize("suffix", [".zip", ".tar", ".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst"])
     def test_round_trip_without_secrets(self, access: FileAccess, tree: Path, suffix: str) -> None:
-        (tree / "docs" / "project" / "main.py").write_text("print()")
+        (tree / "docs" / "project" / "main.py").write_text("print()", encoding="utf-8")
 
         packed = execute(Pack(access, StandardArchiver(), 100), {"sources": ["project", "Obsidian/План.md"], "archive": f"out{suffix}"})
         names = {member.name for member in StandardArchiver().members(tree / "docs" / f"out{suffix}")}
@@ -200,7 +200,7 @@ class TestPack:
     def test_a_file_that_appeared_meanwhile_is_not_deleted(self, tree: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Чужой файл с тем же именем появился после проверки «нет такого» — отказ, и файл цел (П3a №14)."""
         archive = tree / "docs" / "a.zip"
-        archive.write_text("чужое")
+        archive.write_text("чужое", encoding="utf-8")
         monkeypatch.setattr(Path, "exists", lambda self: False if self == archive else Path.is_dir(self) or Path.is_file(self))
 
         with pytest.raises(AlreadyExists):
@@ -209,7 +209,7 @@ class TestPack:
     def test_a_failed_write_does_not_delete_a_file_put_in_its_place(self, tree: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Ревью 07.11.2026, №4: имя занято, а другой процесс подменил путь — сбой записи удалял его файл."""
         archive, foreign = tree / "docs" / "a.zip", tree / "docs" / "чужой.zip"
-        foreign.write_text("чужое")
+        foreign.write_text("чужое", encoding="utf-8")
 
         def replaced_then_failed(*_: object) -> None:
             foreign.replace(archive)
@@ -219,12 +219,12 @@ class TestPack:
         with pytest.raises(OSError, match="диск полон"):
             StandardArchiver().pack(archive, [(tree / "docs" / "Obsidian" / "План.md", "План.md")], ArchiveFormat.ZIP)
 
-        assert archive.read_text() == "чужое"
+        assert archive.read_text(encoding="utf-8") == "чужое"
 
     def test_the_archive_is_written_into_the_name_it_took(self, tree: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Подмена пути после `O_EXCL` не направит запись в чужой файл: пишется в уже открытый."""
         archive, foreign = tree / "docs" / "a.tar", tree / "docs" / "чужой.tar"
-        foreign.write_text("чужое")
+        foreign.write_text("чужое", encoding="utf-8")
         taken = StandardArchiver._new_tar  # pyright: ignore[reportPrivateUsage]
 
         def swapped(stream: object, format: ArchiveFormat) -> tarfile.TarFile:
@@ -234,9 +234,9 @@ class TestPack:
         monkeypatch.setattr(StandardArchiver, "_new_tar", staticmethod(swapped))
         StandardArchiver().pack(archive, [(tree / "docs" / "Obsidian" / "План.md", "План.md")], ArchiveFormat.TAR)
 
-        assert archive.read_text() == "чужое"
+        assert archive.read_text(encoding="utf-8") == "чужое"
 
-        assert archive.read_text() == "чужое"
+        assert archive.read_text(encoding="utf-8") == "чужое"
 
 
 class TestDryRun:
