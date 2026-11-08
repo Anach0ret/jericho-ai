@@ -1,4 +1,5 @@
 import io
+import sys
 import tarfile
 import zipfile
 from pathlib import Path
@@ -206,6 +207,20 @@ class TestPack:
         with pytest.raises(AlreadyExists):
             StandardArchiver().pack(archive, [(tree / "docs" / "Obsidian" / "План.md", "План.md")], ArchiveFormat.ZIP)
 
+    def test_a_failed_write_removes_its_own_archive_and_keeps_the_error(self, tree: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Удаляется уже закрытый архив: Windows открытый не удалит — оставался недописанный, а ошибка подменялась."""
+        archive = tree / "docs" / "a.zip"
+
+        def failed(*_: object) -> None:
+            raise OSError("диск полон")
+
+        monkeypatch.setattr(StandardArchiver, "_write", failed)
+        with pytest.raises(OSError, match="диск полон"):
+            StandardArchiver().pack(archive, [(tree / "docs" / "Obsidian" / "План.md", "План.md")], ArchiveFormat.ZIP)
+
+        assert not archive.exists()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="подмена открытого файла — гонка POSIX; Windows её не допускает")
     def test_a_failed_write_does_not_delete_a_file_put_in_its_place(self, tree: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Ревью 07.11.2026, №4: имя занято, а другой процесс подменил путь — сбой записи удалял его файл."""
         archive, foreign = tree / "docs" / "a.zip", tree / "docs" / "чужой.zip"
@@ -221,6 +236,7 @@ class TestPack:
 
         assert archive.read_text(encoding="utf-8") == "чужое"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="подмена открытого файла — гонка POSIX; Windows её не допускает")
     def test_the_archive_is_written_into_the_name_it_took(self, tree: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Подмена пути после `O_EXCL` не направит запись в чужой файл: пишется в уже открытый."""
         archive, foreign = tree / "docs" / "a.tar", tree / "docs" / "чужой.tar"

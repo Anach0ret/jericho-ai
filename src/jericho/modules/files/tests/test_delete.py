@@ -1,5 +1,8 @@
 import stat
+import sys
 from pathlib import Path
+
+import pytest
 
 from jericho.core import ConfirmationGate, ToolResult
 from jericho.core.testing import execute
@@ -62,6 +65,7 @@ class TestDelete:
 
         assert not result.ok and (tree / "docs" / "project").exists()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="права 0700 — POSIX; на Windows — профиль пользователя")
     def test_what_goes_to_the_own_trash_is_owner_only(self, make_access: MakeAccess, store: Confirmations, tree: Path) -> None:
         """Своя корзина — в состоянии ассистента: E015 после удаления проходит (П3a №13)."""
         (tree / "docs" / PLAN).chmod(0o755)

@@ -10,7 +10,7 @@ from jericho.core.testing.fakes import Confirmations, say_yes
 from jericho.modules.files.access import FileAccess
 from jericho.modules.files.adapters.archives import StandardArchiver
 from jericho.modules.files.adapters.trash import DirectoryTrash
-from jericho.modules.files.entities import Root
+from jericho.modules.files.entities import Root, shown
 from jericho.modules.files.tests.conftest import MakeAccess, names
 from jericho.modules.files.tools.archive import Pack
 from jericho.modules.files.tools.change import CreateFile, EditFile
@@ -59,7 +59,7 @@ class TestWholeFolders:
     def test_copying_the_parent_of_own_files_is_refused(self, make_access: MakeAccess, state: Path, tree: Path) -> None:
         result = execute(Copy(make_access(protected=[state])), {"sources": ["parent"], "target": "copied"})
 
-        assert result.error == "protected_path" and result.data["inside"] == str(state)
+        assert result.error == "protected_path" and result.data["inside"] == shown(state)
         assert not (tree / "docs" / "copied").exists()
 
     def test_packing_the_parent_of_own_files_is_refused(self, make_access: MakeAccess, state: Path, tree: Path) -> None:
@@ -101,7 +101,7 @@ class TestFromDownloads:
         gate = ConfirmationGate(store, "run-2")
         done = say_yes(gate, tool(make_access(gate=gate)))
 
-        assert asked.error == "needs_confirm" and asked.data["untrusted"] == [str(tree / "downloads" / "письмо.txt")]
+        assert asked.error == "needs_confirm" and asked.data["untrusted"] == [shown(tree / "downloads" / "письмо.txt")]
         assert done.ok and (tree / "docs" / "письмо.txt").exists()
 
     def test_a_folder_holding_downloads_counts_as_downloads(self, make_access: MakeAccess, tree: Path) -> None:

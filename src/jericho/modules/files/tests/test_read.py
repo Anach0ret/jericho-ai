@@ -5,7 +5,7 @@ import pytest
 from jericho.core import ForeignText, ToolRefusal, ToolResult
 from jericho.core.testing import execute
 from jericho.modules.files.access import FileAccess
-from jericho.modules.files.entities import Root
+from jericho.modules.files.entities import Root, shown
 from jericho.modules.files.guard import PathGuard
 from jericho.modules.files.settings import DEFAULT_DENY
 from jericho.modules.files.tests.conftest import MakeAccess, items, names
@@ -116,7 +116,7 @@ class TestForeignText:
     def test_untrusted_root_marks_what_was_read(self, access: FileAccess, foreign: ForeignText, tree: Path) -> None:
         execute(ReadFile(access, 4096, 10**6), {"path": str(tree / "downloads" / "письмо.txt")})
 
-        assert foreign.sources == {f"files:{tree / 'downloads'}".casefold()}
+        assert foreign.sources == {f"files:{shown(tree / 'downloads')}".casefold()}
 
     def test_own_files_are_not_foreign(self, access: FileAccess, foreign: ForeignText) -> None:
         execute(ReadFile(access, 4096, 10**6), {"path": "Obsidian/План.md"})
