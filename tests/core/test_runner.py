@@ -112,7 +112,7 @@ class TestDescendants:
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
             try:
-                state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+                state = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0]
             except FileNotFoundError:
                 return False
             if state == "Z":
@@ -123,9 +123,9 @@ class TestDescendants:
     @staticmethod
     def pid(pidfile: Path) -> int:
         deadline = time.monotonic() + 3
-        while not (pidfile.exists() and pidfile.read_text().strip()) and time.monotonic() < deadline:
+        while not (pidfile.exists() and pidfile.read_text(encoding="utf-8").strip()) and time.monotonic() < deadline:
             time.sleep(0.02)
-        return int(pidfile.read_text())
+        return int(pidfile.read_text(encoding="utf-8"))
 
     def test_timeout_stops_the_grandchild_too(self, tmp_path: Path) -> None:
         pidfile = tmp_path / "pid"
@@ -168,7 +168,7 @@ class TestProcessTree:
             "from jericho.core.services.runner import SubprocessRunner; "
             f"SubprocessRunner(timeout=60).run({TestDescendants.grandchild(pidfile)!r}, reads=True)"
         )
-        answer = subprocess.Popen([sys.executable, "-c", script], start_new_session=True, text=True)
+        answer = subprocess.Popen([sys.executable, "-c", script], start_new_session=True, text=True, encoding="utf-8")
         grandchild = TestDescendants.pid(pidfile)
         assert os.getpgid(grandchild) != os.getpgid(answer.pid)
 
@@ -211,7 +211,7 @@ class TestLaunchedStaysAlive:
             f"runner.launch({self.LAUNCHED[program].format(file=launched_file)}); "
             f"runner.run({TestDescendants.grandchild(run_file)!r}, reads=True)"
         )
-        parent = subprocess.Popen([sys.executable, "-c", script], start_new_session=True, text=True)
+        parent = subprocess.Popen([sys.executable, "-c", script], start_new_session=True, text=True, encoding="utf-8")
         launched: int | None = None
         stopped = False
         try:

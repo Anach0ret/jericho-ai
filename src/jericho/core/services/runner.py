@@ -54,6 +54,10 @@ class SubprocessRunner:
     сводка №10; критика плана 07.11.2026).
     """
 
+    # Вывод программ — UTF-8 на любой ОС (`git`, `claude`, JSON), а не кодировка системы (на Windows — cp1252);
+    # битый байт заменяется, а не роняет вызов.
+    ENCODING = "utf-8"
+
     def __init__(self, timeout: float = 5.0, settle: float = 1.0, deadline: PhraseDeadline | None = None) -> None:
         self._timeout = timeout
         self._settle = settle      # сколько ждать после запуска, чтобы заметить мгновенный отказ программы
@@ -72,7 +76,7 @@ class SubprocessRunner:
                 # Своя группа в том же сеансе: остановка достаёт программу с потомками, а свой сеанс — у `launch` —
                 # и есть «отделено» (ревью 07.11.2026, повтор 0.64.3). Ввода нет — DEVNULL, а не терминал родителя:
                 # из фоновой группы чтение терминала остановило бы программу (SIGTTIN) до срока (повтор 0.64.4, №14).
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, process_group=0,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding=self.ENCODING, errors="replace", process_group=0,
             )
         except OSError as error:
             raise CommandError(str(error)) from error

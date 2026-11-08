@@ -102,6 +102,11 @@ class JournalRotation:
         handler = RotatingFileHandler(self._path, backupCount=self._backups, encoding="utf-8", delay=True)
         try:
             handler.doRollover()
+        except PermissionError:
+            # Windows не переименует файл, открытый другим процессом (таймер, ответ из ящика): журнал сменится в
+            # следующий раз, а фраза не падает из-за того, что он немного длиннее. Сказать об этом некуда — журнал
+            # ещё не настроен (смена идёт до него), а консоль у запуска по расписанию — не человек.
+            pass
         finally:
             handler.close()
 

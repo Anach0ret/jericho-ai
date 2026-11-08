@@ -35,7 +35,7 @@ class TestStartSkill:
         created = scaffold.skill("media", "Музыка и видео — пауза, следующий трек, громкость.")
 
         skill = tmp_path / "sprouts" / "skills" / "media"
-        assert sorted(str(file.relative_to(skill)) for file in created) == [
+        assert sorted(file.relative_to(skill).as_posix() for file in created) == [
             "SKILL.md", "__init__.py", "skill.py", "tests/__init__.py", "tests/test_skill.py", "tools/__init__.py",
         ]
 
@@ -97,7 +97,7 @@ class TestStartTool:
         created = scaffold.tool("media", "play_pause")
 
         skill = tmp_path / "sprouts" / "skills" / "media"
-        assert [str(file.relative_to(skill)) for file in created] == [
+        assert [file.relative_to(skill).as_posix() for file in created] == [
             "tools/play_pause.py", "tests/test_play_pause.py", "SKILL.md",
         ]
         module = import_module("sprouts.skills.media.tools.play_pause")
@@ -208,7 +208,7 @@ class TestProjectScaffold:
             logger.propagate = saved[2]
 
     def test_project_has_everything_an_agent_needs_to_start(self, project: Path) -> None:
-        files = {str(file.relative_to(project)) for file in project.rglob("*") if file.is_file()}
+        files = {file.relative_to(project).as_posix() for file in project.rglob("*") if file.is_file()}
 
         assert {
             "AGENTS.md", "README.md", "pyproject.toml", ".gitignore", ".githooks/pre-commit", "tests/test_project.py", "docs/decisions.md",
@@ -251,7 +251,7 @@ class TestProjectScaffold:
 
         ProjectScaffold(repository="https://github.com/me/jericho", version="9.9.9").project("night-owl", tmp_path)
 
-        pyproject = (tmp_path / "night-owl" / "pyproject.toml").read_text()
+        pyproject = (tmp_path / "night-owl" / "pyproject.toml").read_text(encoding="utf-8")
         assert '"jericho-ai @ git+https://github.com/me/jericho@v9.9.9",' in pyproject and "tool.uv.sources" not in pyproject
 
     def test_project_goes_into_the_current_empty_folder_when_asked(self, tmp_path: Path) -> None:

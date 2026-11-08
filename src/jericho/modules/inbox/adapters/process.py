@@ -78,5 +78,5 @@ class ProcessAnswerer:
     def _spawn(self, user: str) -> subprocess.Popen[str]:
         environment = {**self._environment, self._user_variable: user}
         return subprocess.Popen(
-            [*self._launch, "answer", "--wait"], env=environment, stdin=subprocess.PIPE, text=True, start_new_session=True
+            [*self._launch, "answer", "--wait"], env=environment, stdin=subprocess.PIPE, text=True, encoding="utf-8", start_new_session=True
         )

@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from pathlib import Path
 
 from jericho.core.agent.entities import AgentReply, ReplyStatus
 from jericho.core.services.adapters.notify_send import NotifySendNotifier
@@ -39,7 +40,7 @@ class TestNotifySendNotifier:
 
         assert NotifySendNotifier(runner).show(notification, replaces=7) == 42
         assert runner.commands == [[
-            "/usr/bin/notify-send", "--app-name", "Jericho", "--urgency", "normal", "--print-id",
+            str(Path("/usr/bin/notify-send")), "--app-name", "Jericho", "--urgency", "normal", "--print-id",
             "--replace-id", "7", "--expire-time", "12000", "--", "Jericho · вопрос", "-какой проект?",
         ]]
 
@@ -49,7 +50,7 @@ class TestNotifySendNotifier:
         NotifySendNotifier(runner, icon="jericho").show(Notification("Jericho"))
 
         assert runner.commands[0][:7] == [
-            "/usr/bin/notify-send", "--app-name", "Jericho", "--urgency", "normal", "--print-id", "--icon",
+            str(Path("/usr/bin/notify-send")), "--app-name", "Jericho", "--urgency", "normal", "--print-id", "--icon",
         ]
         assert runner.commands[0][7] == "jericho"
 

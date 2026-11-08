@@ -5,6 +5,6 @@
 set -e
 cd "$(git rev-parse --show-toplevel)"
 uv lock --check -q          # версия в pyproject.toml сменилась — uv.lock тоже (CI ставит с --locked; 30.10.2026 упал)
-.venv/bin/python -m pytest -q
+PYTHONWARNDEFAULTENCODING=1 .venv/bin/python -m pytest -q   # открытие файла без encoding — ошибка (pyproject.toml)
 uvx basedpyright --pythonpath .venv/bin/python src tests
 uvx ruff@0.14.0 check src tests

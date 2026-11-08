@@ -59,7 +59,7 @@ class ProcessTree:
     @staticmethod
     def _children(pid: int) -> set[int]:
         try:
-            return {int(child) for task in Path(f"/proc/{pid}/task").iterdir() for child in (task / "children").read_text().split()}
+            return {int(child) for task in Path(f"/proc/{pid}/task").iterdir() for child in (task / "children").read_text(encoding="ascii").split()}
         except OSError:
             return set()      # процесс уже вышел
 
@@ -77,6 +77,6 @@ class ProcessTree:
     def _alive(pid: int) -> bool:
         """Жив и не зомби: зомби уже ничего не делает."""
         try:
-            return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
+            return Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="replace").rsplit(")", 1)[1].split()[0] != "Z"
         except (OSError, IndexError):
             return False

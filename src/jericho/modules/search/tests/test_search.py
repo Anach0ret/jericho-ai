@@ -96,7 +96,7 @@ class TestKey:
 
     def test_file_when_no_variable(self, tmp_path: Path) -> None:
         file = tmp_path / "key"
-        file.write_text("from-file\n")
+        file.write_text("from-file\n", encoding="utf-8")
         network = Network()
 
         execute(WebSearch(engine(network, environment={}, file=file), ForeignText()), {"query": "x y"})

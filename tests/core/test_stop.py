@@ -38,7 +38,7 @@ class TestStop:
             "from jericho.core.services.adapters.file_lock import FileLock\n"
             f"held = FileLock(Path({str(lock)!r})); held.acquire(); print('held', flush=True)\n"
             "try:\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    sys.exit(42)\n"
-        )], stdout=subprocess.PIPE, text=True)
+        )], stdout=subprocess.PIPE, text=True, encoding="utf-8")
         assert holder.stdout is not None and holder.stdout.readline().strip() == "held"
 
         assert FileLock(lock).holder() == holder.pid              # попытка взять занятый замок номер не стирает

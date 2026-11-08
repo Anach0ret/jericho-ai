@@ -42,6 +42,36 @@ class TestHolder:
         assert FileLock(tmp_path / "phrase.lock").acquire()
 
 
+class TestFailures:
+    """Ошибка с файлом номера не оставляет замок занятым (ревью Codex 08.11.2026, №6)."""
+
+    def test_failed_write_of_the_number_gives_the_lock_back(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        lock = FileLock(tmp_path / "phrase.lock")
+
+        def fail() -> None:
+            raise OSError("disk full")
+
+        monkeypatch.setattr(lock, "_write_holder", fail)
+        with pytest.raises(OSError, match="disk full"):
+            lock.acquire()
+
+        assert FileLock(tmp_path / "phrase.lock").acquire()
+
+    def test_failed_removal_of_the_number_still_releases(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        lock = FileLock(tmp_path / "phrase.lock")
+        lock.acquire()
+
+        def fail(self: Path, missing_ok: bool = False) -> None:
+            raise PermissionError("busy")
+
+        monkeypatch.setattr(Path, "unlink", fail)
+        with pytest.raises(PermissionError):
+            lock.release()
+        monkeypatch.undo()
+
+        assert FileLock(tmp_path / "phrase.lock").acquire()
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="права файла — POSIX; на Windows папку закрывает ACL профиля")
 def test_number_file_is_private(tmp_path: Path) -> None:
     FileLock(tmp_path / "run" / "phrase.lock").acquire()

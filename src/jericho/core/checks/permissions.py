@@ -36,4 +36,4 @@ class FilesArePrivate:
     @staticmethod
     def _shown(path: Path) -> str:
         home = Path.home()
-        return f"~/{path.relative_to(home)}" if path.is_relative_to(home) else str(path)
+        return f"~/{path.relative_to(home).as_posix()}" if path.is_relative_to(home) else path.as_posix()

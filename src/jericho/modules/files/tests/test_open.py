@@ -47,26 +47,26 @@ class TestOpenFile:
 
     @pytest.mark.parametrize("name", ["start.sh", "app.desktop", "tool.AppImage", "setup.exe", "run.py"])
     def test_launchers_are_never_run(self, access: FileAccess, opened: Opened, tree: Path, name: str) -> None:
-        (tree / "docs" / name).write_text("#!/bin/sh\nrm -rf ~\n")
+        (tree / "docs" / name).write_text("#!/bin/sh\nrm -rf ~\n", encoding="utf-8")
 
         assert execute(OpenFile(access, opened), {"path": name}).error == "not_openable"
         assert opened.paths == []
 
     def test_executable_bit_wins_over_a_harmless_ending(self, access: FileAccess, opened: Opened, tree: Path) -> None:
         script = tree / "docs" / "notes.txt"
-        script.write_text("#!/bin/sh\n")
+        script.write_text("#!/bin/sh\n", encoding="utf-8")
         script.chmod(0o755)
 
         assert execute(OpenFile(access, opened), {"path": "notes.txt"}).error == "not_openable"
 
     def test_unknown_type_is_not_opened(self, access: FileAccess, opened: Opened, tree: Path) -> None:
-        (tree / "docs" / "без-окончания").write_text("?")
+        (tree / "docs" / "без-окончания").write_text("?", encoding="utf-8")
 
         assert execute(OpenFile(access, opened), {"path": "без-окончания"}).error == "unknown_type"
 
     def test_page_from_downloads_waits_for_yes(self, access: FileAccess, opened: Opened, tree: Path) -> None:
-        (tree / "downloads" / "счёт.html").write_text("<script>…</script>")
-        (tree / "docs" / "своя.html").write_text("<p>моя</p>")
+        (tree / "downloads" / "счёт.html").write_text("<script>…</script>", encoding="utf-8")
+        (tree / "docs" / "своя.html").write_text("<p>моя</p>", encoding="utf-8")
 
         assert execute(OpenFile(access, opened), {"path": str(tree / "downloads" / "счёт.html")}).error == "needs_confirm"
         assert execute(OpenFile(access, opened), {"path": "своя.html"}).ok

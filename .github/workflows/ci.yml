@@ -24,6 +24,8 @@ jobs:
       - name: Зависимости
         run: uv sync --all-extras --locked
       - name: Тесты
+        env:
+          PYTHONWARNDEFAULTENCODING: "1"     # файл без encoding — ошибка теста (pyproject.toml, filterwarnings)
         run: uv run pytest -q
       - name: Типы
         run: uvx basedpyright --pythonpath .venv/bin/python src tests

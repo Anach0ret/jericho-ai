@@ -1,5 +1,7 @@
 import logging
+import sys
 from collections.abc import Iterator
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import pytest
@@ -67,6 +69,7 @@ class TestJournalFile:
 
         assert len(JsonLinesLogReader(journal_file).tail(10)) == 1
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="на Windows открытый файл не переименовать — пишущий не «следует»")
     def test_full_file_is_replaced_and_the_writer_follows(self, journal_file: Path) -> None:
         """Файл сменяет не пишущий, а тот, кто начал запуск; пишущий замечает смену и пишет уже в новый."""
         LoggingConfigurator(journal_file, "run-1", LOGGER_NAME).configure()
@@ -90,12 +93,27 @@ class TestJournalFile:
         assert len(JsonLinesLogReader(journal_file).tail(10)) == 1
 
     def test_only_the_latest_replaced_files_are_kept(self, journal_file: Path) -> None:
-        LoggingConfigurator(journal_file, "run-1", LOGGER_NAME).configure()
-        for _ in range(4):
-            logging.getLogger(LOGGER_NAME).info("resolve")
+        journal_file.parent.mkdir(parents=True)
+        for _ in range(4):      # пишет другой процесс, файл между фразами закрыт — как перед сборкой фразы
+            with journal_file.open("a", encoding="utf-8") as file:
+                file.write('{"event": "resolve"}\n')
             JournalRotation(journal_file, max_bytes=1, backups=2).rotate_if_full()
 
         assert sorted(path.name for path in journal_file.parent.iterdir()) == ["journal.jsonl.1", "journal.jsonl.2"]
+
+
+    def test_file_held_by_another_process_is_replaced_next_time(self, journal_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Windows: файл открыт таймером или ответом из ящика — смена откладывается, фраза не падает."""
+        journal_file.parent.mkdir(parents=True)
+        journal_file.write_text("x" * 10, encoding="utf-8")
+
+        def held(self: RotatingFileHandler) -> None:
+            raise PermissionError("[WinError 32] The process cannot access the file")
+
+        monkeypatch.setattr(RotatingFileHandler, "doRollover", held)
+        JournalRotation(journal_file, max_bytes=1).rotate_if_full()
+
+        assert journal_file.read_text(encoding="utf-8") == "x" * 10
 
 
 class TestJsonLinesLogReader:

@@ -10,7 +10,7 @@ from jericho.core.interfaces.cli.main import utf8_output
 
 def test_output_in_a_system_encoding_becomes_utf8(monkeypatch: pytest.MonkeyPatch) -> None:
     raw = io.BytesIO()
-    monkeypatch.setattr("sys.stdout", io.TextIOWrapper(raw, encoding="cp1252"))
+    monkeypatch.setattr("sys.stdout", io.TextIOWrapper(raw, encoding="cp1252", newline="\n"))
 
     utf8_output()
     print("Создано и изменено:", flush=True)

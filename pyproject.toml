@@ -1,6 +1,6 @@
 [project]
 name = "jericho-ai"
-version = "0.64.9"
+version = "0.64.11"
 description = "Каркас для ассистентов: модель получает набор действий, каждое проходит проверки в коде и остаётся в журнале"
 authors = [
     { name = "Anach0ret" }
@@ -12,6 +12,7 @@ license-files = ["LICENSE", "NOTICE"]
 dependencies = [
     "filelock>=4.2",
     "platformdirs>=4.5",
+    "tzdata>=2025.2; sys_platform == 'win32'",      # у Windows нет базы часовых поясов — zoneinfo берёт её отсюда
     "pydantic>=2.14",
     "pyyaml>=6.0.3",
     "send2trash>=1.8",
@@ -69,3 +70,6 @@ known-first-party = ["jericho"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "src/jericho/modules", "src/jericho/backends"]
+# Файл и вывод программы без encoding читаются в кодировке системы (на Windows — cp1252) и роняют русский текст.
+# Предупреждение включает PYTHONWARNDEFAULTENCODING=1 — его ставят хук и CI; тогда оно — ошибка теста.
+filterwarnings = ["error::EncodingWarning"]

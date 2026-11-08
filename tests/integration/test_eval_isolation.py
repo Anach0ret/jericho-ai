@@ -36,8 +36,8 @@ class TestEvalIsolation:
     def test_files_to_forget_are_the_eval_ones_and_working_files_survive(self, tmp_path: Path) -> None:
         modules, working = working_assistant(tmp_path)
         notes, conversation = working.state_dir / "notes.json", working.runtime_dir / "conversation.json"
-        notes.write_text("{}")
-        conversation.write_text("[]")
+        notes.write_text("{}", encoding="utf-8")
+        conversation.write_text("[]", encoding="utf-8")
         eval_paths = Paths(tmp_path / "state" / "eval", tmp_path / "run" / "eval")
 
         files = modules.eval_files(eval_paths)

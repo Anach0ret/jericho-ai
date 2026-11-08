@@ -31,7 +31,7 @@ class TestGuard:
 
     def test_key_without_extension_is_forbidden(self, access: FileAccess, tree: Path) -> None:
         """Аудит 27.10.2026: ключ выкатки `deploy/build/host_key` образцы `*.key` и `id_*` не закрывали."""
-        (tree / "docs" / "project" / "host_key").write_text("-----BEGIN OPENSSH PRIVATE KEY-----")
+        (tree / "docs" / "project" / "host_key").write_text("-----BEGIN OPENSSH PRIVATE KEY-----", encoding="utf-8")
 
         assert refusal(execute(ReadFile(access, 4096, 10**6), {"path": "project/host_key"})) == "forbidden_path"
 
@@ -89,7 +89,7 @@ class TestReadFile:
     def test_a_line_longer_than_the_budget_is_read_to_the_end(self, access: FileAccess, tree: Path) -> None:
         """Однострочный JSON: раньше — начало с «…» и ни слова о продолжении (ревью 02.11.2026, П3a №10)."""
         line = "".join(f"{i:04d}" for i in range(1250))      # 5000 знаков одной строкой
-        (tree / "docs" / "data.json").write_text(line)
+        (tree / "docs" / "data.json").write_text(line, encoding="utf-8")
         tool, parts, request = ReadFile(access, 1024, 10**6), [], {"path": "data.json"}
 
         while True:
