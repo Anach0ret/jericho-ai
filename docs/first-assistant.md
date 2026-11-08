@@ -15,7 +15,7 @@
 ## 1. Создать проект
 
 ```
-$ uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.8 jericho startproject notes-helper
+$ uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.9 jericho startproject notes-helper
 …
 Дальше: cd notes-helper && uv sync && uv run pytest -q && uv run notes_helper ask "привет"
 Как наполнять проект — в его AGENTS.md.

@@ -1,3 +1,10 @@
+import sys
+
+import pytest
+
+if sys.platform == "win32":      # батарейка рабочего стола Linux: у dbus-fast на Windows нет сокетов Unix (CMSG_LEN)
+    pytest.skip("D-Bus — батарейка Linux", allow_module_level=True)
+
 import asyncio
 from collections.abc import Callable
 
