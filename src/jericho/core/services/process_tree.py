@@ -12,6 +12,7 @@ import os
 import signal
 import subprocess
 import time
+from collections.abc import Callable
 from typing import ClassVar, Protocol
 
 import psutil
@@ -83,15 +84,23 @@ class ProcessTree:
 
     @classmethod
     def stop(cls, process: subprocess.Popen[str]) -> None:
-        tree = cls._tree(process.pid)
+        try:
+            cls.stop_pid(process.pid, running=lambda: process.poll() is None)
+        finally:
+            process.wait()
+
+    @classmethod
+    def stop_pid(cls, pid: int, running: Callable[[], bool] | None = None) -> None:
+        """То же по номеру — и для процесса, который нам не потомок (держатель фразы для `stop` на Windows)."""
+        tree = cls._tree(pid)
+        alive = running or (lambda: cls._alive(pid))
         try:
             cls._send(tree, force=False)
             until = time.monotonic() + cls.GRACE
-            while time.monotonic() < until and (process.poll() is None or any(map(cls._alive, tree))):
+            while time.monotonic() < until and (alive() or any(map(cls._alive, tree))):
                 time.sleep(0.02)
         finally:
-            cls._send(tree | cls._tree(*(pid for pid in tree if cls._alive(pid))), force=True)
-            process.wait()
+            cls._send(tree | cls._tree(*(child for child in tree if cls._alive(child))), force=True)
 
     @classmethod
     def _tree(cls, *roots: int) -> set[int]:

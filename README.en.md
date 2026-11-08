@@ -60,7 +60,7 @@ Python 3.14 and [uv](https://docs.astral.sh/uv/); Linux for now (see Status). In
 (the name `jericho` on PyPI belongs to another package).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.14 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.15 jericho startproject my-assistant
 cd my-assistant
 git init -b main && git config core.hooksPath .githooks
 uv sync && uv run pytest -q

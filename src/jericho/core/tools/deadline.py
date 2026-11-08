@@ -33,6 +33,23 @@ def _expired(signum: int, frame: FrameType | None) -> None:
     raise ToolTimeout
 
 
+def _restore(signum: signal.Signals, previous: Handler) -> None:
+    """Вернуть прежний обработчик — в любом случае, даже если срок пришёл на выходе из ручки.
+
+    Сигнал, который уже ждёт, интерпретатор обработает до смены обработчика — нашим: это `ToolTimeout`, и смены не
+    будет. Поэтому — повтор, пока обработчик не сменится, а срок уходит дальше (ревью Codex 08.11.2026, №7).
+    """
+    expired = False
+    while True:
+        try:
+            signal.signal(signum, signal.SIG_DFL if previous is None else previous)   # None — ставили не из Python
+            break
+        except ToolTimeout:
+            expired = True
+    if expired:
+        raise ToolTimeout
+
+
 class AlarmTimer:
     """Linux, macOS: таймер процесса (`signal.setitimer`) и `SIGALRM`. Прерывает и ожидание, которое ОС прерывает
     сигналом (`time.sleep`, чтение сокета); посреди операции в C — нет."""
@@ -40,12 +57,14 @@ class AlarmTimer:
     @contextmanager
     def running(self, seconds: float) -> Iterator[None]:
         previous = signal.signal(signal.SIGALRM, _expired)
-        signal.setitimer(signal.ITIMER_REAL, max(seconds, 0.001))
         try:
-            yield
+            signal.setitimer(signal.ITIMER_REAL, max(seconds, 0.001))
+            try:
+                yield
+            finally:
+                signal.setitimer(signal.ITIMER_REAL, 0)      # срок, пришедший прямо перед этим, не отменит возврат ниже
         finally:
-            signal.setitimer(signal.ITIMER_REAL, 0)
-            signal.signal(signal.SIGALRM, previous)
+            _restore(signal.SIGALRM, previous)
 
 
 class InterruptTimer:
@@ -70,30 +89,21 @@ class InterruptTimer:
                     _thread.interrupt_main(self._signum)
 
         previous = signal.signal(self._signum, _expired)
-        timer = threading.Timer(max(seconds, 0.001), fire)
-        timer.daemon = True
-        armed.set()
-        timer.start()
         try:
-            yield
-        finally:
-            with lock:
-                armed.clear()      # после этого таймер прерывания уже не попросит
-            timer.cancel()
-            self._restore(previous)
-
-    def _restore(self, previous: Handler) -> None:
-        """Прерывание, о котором таймер успел попросить, интерпретатор обработает до смены обработчика — нашим, и
-        оно станет `ToolTimeout`. Обработчик возвращается в любом случае: иначе следующий сигнал ушёл бы в наш."""
-        expired = False
-        while True:
+            timer = threading.Timer(max(seconds, 0.001), fire)
+            timer.daemon = True
+            armed.set()
+            timer.start()
             try:
-                signal.signal(self._signum, signal.SIG_DFL if previous is None else previous)   # None — ставили не из Python
-                break
-            except ToolTimeout:
-                expired = True
-        if expired:
-            raise ToolTimeout
+                yield
+            finally:
+                # Прерывание, о котором таймер успел попросить, может прийти и здесь: тогда таймер уже сработал, а
+                # обработчик вернёт внешний finally.
+                with lock:
+                    armed.clear()      # после этого таймер прерывания уже не попросит
+                timer.cancel()
+        finally:
+            _restore(self._signum, previous)
 
 
 def system_timer() -> Timer:

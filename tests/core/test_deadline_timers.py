@@ -3,6 +3,7 @@
 
 import signal
 import sys
+import threading
 import time
 
 import pytest
@@ -50,6 +51,58 @@ class TestInterruptTimer:
     def test_ctrl_c_stays_a_stop_not_a_deadline(self) -> None:
         with pytest.raises(KeyboardInterrupt), Deadline(2, InterruptTimer(TEST_SIGNAL)).limit():
             raise KeyboardInterrupt
+
+
+class TestCutOffOnTheWayOut:
+    """Ревью Codex 08.11.2026, №7: срок, пришедший при выходе из ручки, оставлял обработчик срока вместо прежнего."""
+
+    def test_interrupt_timer_gives_the_handler_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = signal.getsignal(TEST_SIGNAL)
+
+        def delivered_now(self: threading.Timer) -> None:
+            raise ToolTimeout       # как если бы обработчик сработал на этой строке выхода
+
+        monkeypatch.setattr(threading.Timer, "cancel", delivered_now)
+        with pytest.raises(ToolTimeout), Deadline(2, InterruptTimer(TEST_SIGNAL)).limit():
+            pass
+
+        assert signal.getsignal(TEST_SIGNAL) is before
+
+    def test_waiting_signal_does_not_stop_the_handler_from_coming_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Ждущий сигнал интерпретатор обработает до смены обработчика: возврат повторяется, срок не теряется."""
+        before = signal.getsignal(TEST_SIGNAL)
+        real = signal.signal
+        pending = [True]
+
+        def first_restore_meets_the_signal(signum: int, handler: object) -> object:
+            if handler is before and pending:
+                pending.clear()
+                raise ToolTimeout
+            return real(signum, handler)  # pyright: ignore[reportArgumentType]
+
+        monkeypatch.setattr(signal, "signal", first_restore_meets_the_signal)
+        with pytest.raises(ToolTimeout), Deadline(2, InterruptTimer(TEST_SIGNAL)).limit():
+            pass
+        monkeypatch.undo()
+
+        assert signal.getsignal(TEST_SIGNAL) is before
+
+    @pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="таймер процесса — Linux и macOS")
+    def test_alarm_timer_gives_the_handler_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        before = signal.getsignal(signal.SIGALRM)
+        real = signal.setitimer
+
+        def delivered_on_disarm(which: int, seconds: float, interval: float = 0.0) -> tuple[float, float]:
+            if seconds == 0:
+                real(which, 0)
+                raise ToolTimeout       # SIGALRM пришёл прямо перед снятием таймера
+            return real(which, seconds, interval)
+
+        monkeypatch.setattr(signal, "setitimer", delivered_on_disarm)
+        with pytest.raises(ToolTimeout), Deadline(2, AlarmTimer()).limit():
+            pass
+
+        assert signal.getsignal(signal.SIGALRM) is before
 
 
 @pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="таймер процесса — Linux и macOS")

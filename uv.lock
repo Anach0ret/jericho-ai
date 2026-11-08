@@ -354,7 +354,7 @@ wheels = [
 
 [[package]]
 name = "jericho-ai"
-version = "0.64.14"
+version = "0.64.15"
 source = { editable = "." }
 dependencies = [
     { name = "filelock" },
