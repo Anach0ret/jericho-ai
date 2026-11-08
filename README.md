@@ -57,7 +57,7 @@
 версии (имя `jericho` в PyPI занято другим пакетом).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.12 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.13 jericho startproject my-assistant
 cd my-assistant
 git init -b main && git config core.hooksPath .githooks
 uv sync && uv run pytest -q
@@ -123,7 +123,7 @@ class SendReport(Tool[SendReportRequest]):
 безопасности — Linux** (на другой машине — Linux в контейнере): срок ручки, остановка дерева программ, закрытые
 файлы — что где обещано, в [docs/security.md](docs/security.md) «Платформы». Батарейки под Linux — голос,
 уведомления по D-Bus (`notify`, extra `desktop`), задачи на таймерах systemd (`tasks`) — необязательные модули: на
-другой ОС их не включают, а в тестах подменяют. Сейчас на Windows ещё неполны остановка дерева программ и `stop`.
+другой ОС их не включают, а в тестах подменяют. На Windows остановка дерева программ и `stop` — сразу, без просьбы, и отделённое не различается.
 
 ## Что здесь
 

@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import psutil
 import pytest
 from pydantic import ValidationError
 
@@ -281,7 +282,9 @@ class TestProcessAnswerer:
         pidfile = tmp_path / "pid"
         script = (
             "import subprocess, sys, time; sys.stdin.readline() or sys.exit(); "
-            f"child = subprocess.Popen(['sh', '-c', \"trap '' TERM; exec sleep 30\"]); open({str(pidfile)!r}, 'w').write(str(child.pid)); "
+            "child = subprocess.Popen([sys.executable, '-c', 'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            "time.sleep(30)']); "
+            f"open({str(pidfile)!r}, 'w', encoding='utf-8').write(str(child.pid)); "
             "time.sleep(30)"
         )
         slow = self.answerer(script, timeout=1.0)
@@ -291,8 +294,7 @@ class TestProcessAnswerer:
 
         pid = int(pidfile.read_text(encoding="utf-8"))
         time.sleep(0.3)
-        stat = Path(f"/proc/{pid}/stat")
-        assert not stat.exists() or stat.read_text().rsplit(")", 1)[1].split()[0] == "Z"
+        assert not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
 
 
 class TestSubscriptionIsNotShared:

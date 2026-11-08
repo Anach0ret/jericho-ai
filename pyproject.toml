@@ -1,6 +1,6 @@
 [project]
 name = "jericho-ai"
-version = "0.64.12"
+version = "0.64.13"
 description = "Каркас для ассистентов: модель получает набор действий, каждое проходит проверки в коде и остаётся в журнале"
 authors = [
     { name = "Anach0ret" }
@@ -16,6 +16,7 @@ dependencies = [
     "pydantic>=2.14",
     "pyyaml>=6.0.3",
     "send2trash>=1.8",
+    "psutil>=7.1",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +49,7 @@ dev = [
     "openai>=2.0",
     "dbus-fast>=2.44",
     "keyring>=25.0",
+    "types-psutil>=7.2.2.20260906",
 ]
 
 [tool.basedpyright]
