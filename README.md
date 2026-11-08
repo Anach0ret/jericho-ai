@@ -53,11 +53,11 @@
 
 ## Быстрый старт
 
-Нужны Linux (на macOS не проверялся), Python 3.14 и [uv](https://docs.astral.sh/uv/). Каркас ставится из репозитория по метке
+Нужны Python 3.14 и [uv](https://docs.astral.sh/uv/); пока — Linux (почему — в «Статусе»). Каркас ставится из репозитория по метке
 версии (имя `jericho` в PyPI занято другим пакетом).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.6 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.7 jericho startproject my-assistant
 cd my-assistant
 git init -b main && git config core.hooksPath .githooks
 uv sync && uv run pytest -q
@@ -113,10 +113,16 @@ class SendReport(Tool[SendReportRequest]):
 ## Статус
 
 Версия 0.x: каркас молод и ещё меняется — что публично и как меняются версии, в
-[docs/stability.md](docs/stability.md). Проверяется на Linux; модули рабочего стола (голос, уведомления по D-Bus)
-— только Linux. Документация и тексты для модели — на русском; ответы
+[docs/stability.md](docs/stability.md). Документация и тексты для модели — на русском; ответы
 ассистента можно перевести на английский настройкой `language = "en"`. Это личный проект: на вопросы и issues автор
 отвечает по возможности, без сроков.
+
+**Платформы.** Каркас задуман без привязки к ОС: то, что зависит от системы, — батарейки, необязательные модули,
+которые на другой ОС не включают, а пишут свои. Батарейки под Linux — голос, уведомления по D-Bus (`notify`,
+extra `desktop`), задачи на таймерах systemd (`tasks`). Само ядро пока проверяется только на Linux: в нём ещё есть
+механизмы POSIX — замок файла (`fcntl`), срок ручки (`SIGALRM`), остановка дерева программ (`/proc`, группы
+процессов), права файлов `0600`. Поэтому на Windows ядро пока не запускается, на macOS не проверялось (остановка
+дерева программ там неполная); перевод этих мест на кроссплатформенные — следующая большая работа.
 
 ## Что здесь
 
