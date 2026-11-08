@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterable, Sequence
 from fnmatch import fnmatch
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from jericho.core.tools.result import ToolRefusal
 from jericho.modules.files.entities import Place, Root, shown
@@ -26,6 +27,10 @@ class PathGuard:
     убрать со своего места.
 
     Список защищённого — живой (`OwnPaths`): модули, собранные позже модуля файлов, добавляют свои папки.
+
+    На Windows путь от модели не может нести то, что Win32 читает иначе, чем написано: `:` вне имени диска —
+    альтернативный поток NTFS (`.env::$DATA` — это содержимое `.env`), точка или пробел в конце части — Win32 их
+    отбрасывает (`.env.` открывает `.env`). Запретный образец такое имя не узнал бы — отказ до `resolve()`.
     """
 
     NO_ROOTS = "no_roots"
@@ -34,10 +39,13 @@ class PathGuard:
     READ_ONLY = "read_only_root"
     PROTECTED = "protected_path"
 
-    def __init__(self, roots: Sequence[Root], deny: Sequence[str], protected: Iterable[Path] = ()) -> None:
+    def __init__(
+        self, roots: Sequence[Root], deny: Sequence[str], protected: Iterable[Path] = (), system: str = sys.platform
+    ) -> None:
         self._roots = tuple(Root(root.path.expanduser().resolve(), root.read_only, root.untrusted) for root in roots)
         self._deny = tuple(pattern.casefold() for pattern in deny)
         self._protected = protected
+        self._windows = system == "win32"
 
     @property
     def roots(self) -> tuple[Root, ...]:
@@ -48,6 +56,8 @@ class PathGuard:
         содержимым (скопировать, упаковать); `remove` — сам путь со всем содержимым уходит со своего места."""
         if not self._roots:
             raise ToolRefusal(self.NO_ROOTS, detail="работа с файлами не настроена: в разделе files нет корней")
+        if self._windows and self._read_otherwise(raw):
+            raise ToolRefusal(self.FORBIDDEN, path=raw, detail="на Windows это имя читается иначе, чем написано: поток NTFS или точка в конце")
         path = Path(raw).expanduser()
         path = (path if path.is_absolute() else self._roots[0].path / path).resolve()
         root = self._root_of(path)
@@ -71,6 +81,13 @@ class PathGuard:
         resolved = path.resolve()
         inside_own = any(resolved.is_relative_to(own) for own in self._own())
         return resolved.is_relative_to(root.path) and not self._denied(resolved, root) and not inside_own
+
+    @staticmethod
+    def _read_otherwise(raw: str) -> bool:
+        """`:` вне имени диска — поток NTFS; точка или пробел в конце части Win32 отбрасывает."""
+        windows = PureWindowsPath(raw)
+        parts = windows.parts[1:] if windows.anchor else windows.parts
+        return any(":" in part or (part not in (".", "..") and part != part.rstrip(". ")) for part in parts)
 
     def _own(self) -> tuple[Path, ...]:
         return tuple(path.expanduser().resolve() for path in self._protected)

@@ -182,6 +182,7 @@ class TestProcessTree:
 
         assert not TestDescendants.alive(grandchild)
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="паузы после TERM на Windows нет: TERM там — сразу TerminateProcess")
     def test_tool_deadline_inside_the_pause_still_kills(self, tmp_path: Path) -> None:
         """Срок runner (0,5 с) раньше срока ручки (0,8 с): `ToolTimeout` приходит посреди паузы после TERM (0,5 с).
         Срок runner — не меньше запуска внука: внук на Python появляется за десятки миллисекунд."""

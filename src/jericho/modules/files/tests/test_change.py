@@ -7,7 +7,7 @@ from jericho.core.testing import execute
 from jericho.core.testing.fakes import Confirmations, say_yes
 from jericho.modules.files.access import FileAccess
 from jericho.modules.files.adapters.dry_run import DryRunChanger, NoVersions
-from jericho.modules.files.entities import Root
+from jericho.modules.files.entities import Root, shown
 from jericho.modules.files.tests.conftest import MakeAccess
 from jericho.modules.files.tools.change import CreateFile, EditFile, MakeDir, WriteFile
 from jericho.modules.files.tools.read import ReadFile
@@ -117,7 +117,7 @@ class TestTransfer:
         gate = ConfirmationGate(store, "run-2")
         done = say_yes(gate, Copy(make_access(gate=gate)))
 
-        assert asked.error == "needs_confirm" and asked.data["replaces"] == [str(tree / "docs" / "project" / "План.md")]
+        assert asked.error == "needs_confirm" and asked.data["replaces"] == [shown(tree / "docs" / "project" / "План.md")]
         assert done.ok and text(tree, "project/План.md").startswith("строка 1")
         assert [path.read_text(encoding="utf-8") for path in versions(tree)] == ["старый план"]
 

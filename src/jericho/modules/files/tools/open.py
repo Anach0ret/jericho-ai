@@ -26,6 +26,9 @@ class OpenPolicy:
     _LAUNCHERS = frozenset({
         ".desktop", ".sh", ".bash", ".zsh", ".fish", ".command", ".run", ".bin", ".appimage", ".flatpakref",
         ".exe", ".msi", ".bat", ".cmd", ".ps1", ".vbs", ".jar", ".deb", ".rpm", ".py", ".pl", ".rb", ".lnk", ".url",
+        # Windows запускает и это — двойным щелчком, без бита «x» (его там нет): PATHEXT, Windows Script Host, реестр.
+        ".com", ".scr", ".pif", ".cpl", ".msc", ".msp", ".hta", ".wsf", ".wsh", ".vbe", ".js", ".jse", ".reg",
+        ".psm1", ".appref-ms", ".application", ".pkg", ".mpkg",
     })
     _MEDIA = frozenset({"text", "image", "audio", "video", "font"})
     _DOCUMENTS = (

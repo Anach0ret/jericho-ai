@@ -1,3 +1,4 @@
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -52,12 +53,20 @@ class TestOpenFile:
         assert execute(OpenFile(access, opened), {"path": name}).error == "not_openable"
         assert opened.paths == []
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="бит «x» — POSIX; на Windows запускаемое узнаётся по окончанию")
     def test_executable_bit_wins_over_a_harmless_ending(self, access: FileAccess, opened: Opened, tree: Path) -> None:
         script = tree / "docs" / "notes.txt"
         script.write_text("#!/bin/sh\n", encoding="utf-8")
         script.chmod(0o755)
 
         assert execute(OpenFile(access, opened), {"path": "notes.txt"}).error == "not_openable"
+
+    @pytest.mark.parametrize("name", ["setup.exe", "run.com", "screen.scr", "page.hta", "task.wsf", "tool.js", "keys.reg", "app.appref-ms"])
+    def test_what_windows_runs_on_a_double_click_is_not_opened(self, access: FileAccess, opened: Opened, tree: Path, name: str) -> None:
+        """Бита «x» на Windows нет: запускаемое там — по окончанию (PATHEXT, Windows Script Host, реестр)."""
+        (tree / "docs" / name).write_text("?", encoding="utf-8")
+
+        assert execute(OpenFile(access, opened), {"path": name}).error == "not_openable"
 
     def test_unknown_type_is_not_opened(self, access: FileAccess, opened: Opened, tree: Path) -> None:
         (tree / "docs" / "без-окончания").write_text("?", encoding="utf-8")

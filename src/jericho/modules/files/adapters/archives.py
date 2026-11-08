@@ -62,17 +62,20 @@ class StandardArchiver:
     def pack(self, archive: Path, items: Sequence[tuple[Path, str]], format: ArchiveFormat) -> None:
         """Имя занимается исключительно (`O_EXCL`), и архив пишется в этот самый открытый файл, а не заново по пути.
         Удаляется при сбое только он: файл, которым тем временем подменили путь, цел (ревью 02.11.2026, П3a №14;
-        07.11.2026, №4). Между сверкой и удалением остаётся узкое окно — предел POSIX: удалить «по дескриптору» нельзя."""
+        07.11.2026, №4). Между сверкой и удалением остаётся узкое окно — предел POSIX: удалить «по дескриптору» нельзя.
+        Удаляется уже закрытый: Windows открытый файл не удалит — сбой оставлял недописанный архив и прятал исходную
+        ошибку за `PermissionError`; какой файл наш, помнит `fstat`, снятый до закрытия."""
         try:
             descriptor = os.open(archive, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
         except FileExistsError as error:
             raise AlreadyExists(str(archive)) from error
-        with os.fdopen(descriptor, "wb") as stream:
-            try:
+        created = os.fstat(descriptor)
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
                 self._write(stream, items, format)
-            except BaseException:
-                self._remove_own(archive, os.fstat(stream.fileno()))
-                raise
+        except BaseException:
+            self._remove_own(archive, created)
+            raise
 
     @staticmethod
     def _remove_own(archive: Path, created: os.stat_result) -> None:
