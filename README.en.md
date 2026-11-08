@@ -60,7 +60,7 @@ Python 3.14 and [uv](https://docs.astral.sh/uv/); Linux for now (see Status). In
 (the name `jericho` on PyPI belongs to another package).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.11 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.12 jericho startproject my-assistant
 cd my-assistant
 git init -b main && git config core.hooksPath .githooks
 uv sync && uv run pytest -q
@@ -76,12 +76,13 @@ your personal assistant only (Anthropic's terms); for anything other people use,
 0.x — young and still changing; what is public and how versions change is in [docs/stability.md](docs/stability.md).
 A personal project: issues are answered when possible, no guarantees on timing.
 
-**Platforms.** The framework is meant to be OS-independent: anything tied to a system is a battery — an optional
-module you leave out on another OS and write your own. Linux batteries: voice, D-Bus notifications (`notify`, the
-`desktop` extra), tasks on systemd timers (`tasks`). The core itself is tested only on Linux so far: it still uses
-POSIX mechanisms — tool deadline (`SIGALRM`), stopping a program tree (`/proc`, process groups), `stop` of a phrase
-(a signal), `0600` file modes. The file lock and standard folders already work on every OS. So the core does not start on Windows yet and is untested on macOS (stopping a program
-tree is incomplete there); moving these to cross-platform ones is the next big piece of work.
+**Platforms.** The framework is for very different assistants, and they mostly run on a server or in a container.
+So there are two levels. **Development — on Linux, macOS and Windows:** create a project, write skills, services and
+modules, run the assistant locally, check logic, the "yes", errors and the model, run tests. **Full safety
+guarantees — Linux** (elsewhere — Linux in a container): tool deadline, stopping a program tree, private files — see
+"Платформы" in [docs/security.md](docs/security.md). Linux batteries — voice, D-Bus notifications (`notify`, the
+`desktop` extra), tasks on systemd timers (`tasks`) — are optional modules: leave them out on another OS and fake
+them in tests. On Windows, stopping a program tree and `stop` are still incomplete.
 
 ## License
 

@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -41,6 +42,7 @@ class TestJsonStateFile:
         assert state_file(tmp_path / "notes.json").read(names, []) == []
         assert caplog.records == []
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="права 0600 — договор POSIX; на Windows — профиль пользователя (E015)")
     def test_file_is_private_and_no_temporary_file_is_left(self, tmp_path: Path) -> None:
         path = tmp_path / "notes.json"
 

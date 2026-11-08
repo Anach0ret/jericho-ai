@@ -217,6 +217,9 @@ class TestProjectScaffold:
         } <= files
         assert 'night_watch = "night_watch.__main__:main"' in (project / "pyproject.toml").read_text(encoding="utf-8")
         assert 'jericho-ai = { path = "/opt/jericho", editable = true }' in (project / "pyproject.toml").read_text(encoding="utf-8")
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="бит исполнения — POSIX; на Windows хук запускает git")
+    def test_hook_is_executable(self, project: Path) -> None:
         assert (project / ".githooks/pre-commit").stat().st_mode & 0o111
 
     def test_new_project_is_assembled_and_passes_its_own_checks(self, project: Path, tmp_path: Path) -> None:

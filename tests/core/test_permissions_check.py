@@ -1,5 +1,8 @@
 import os
+import sys
 from pathlib import Path
+
+import pytest
 
 from jericho.core.checks.base import Project
 from jericho.core.checks.permissions import FilesArePrivate
@@ -8,10 +11,12 @@ from jericho.core.services.adapters.json_file import JsonStateFile
 from jericho.core.skills.registry import InstalledSkills
 
 
-def found(*dirs: Path) -> list[str]:
-    return [message.text for message in FilesArePrivate().run(Project(Path("."), InstalledSkills([]), private_dirs=dirs))]
+def found(*dirs: Path, check: FilesArePrivate | None = None) -> list[str]:
+    rule = check or FilesArePrivate(system="linux")
+    return [message.text for message in rule.run(Project(Path("."), InstalledSkills([]), private_dirs=dirs))]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="биты chmod — договор POSIX; на Windows права — ACL")
 class TestFilesArePrivate:
     def test_open_file_and_folder_are_found_with_the_fix(self, tmp_path: Path) -> None:
         root = tmp_path / "jericho"
@@ -45,3 +50,23 @@ class TestFilesArePrivate:
 
         assert found(tmp_path) == []
         assert (tmp_path / "run" / "due.lock").stat().st_mode & 0o077 == 0
+
+
+class TestOnWindows:
+    """На Windows — не биты chmod, а место: папки в профиле пользователя его Windows закрывает от других учётных записей."""
+
+    def test_folders_inside_the_profile_pass_whatever_their_mode(self, tmp_path: Path) -> None:
+        root = tmp_path / "AppData" / "Local" / "jericho"
+        root.mkdir(parents=True)
+        (root / "journal.jsonl").write_text("{}", encoding="utf-8")
+
+        assert found(root, check=FilesArePrivate(system="win32", home=tmp_path)) == []
+
+    def test_folder_outside_the_profile_is_found_with_the_fix(self, tmp_path: Path) -> None:
+        home, shared = tmp_path / "Users" / "anna", tmp_path / "Shared" / "jericho"
+        home.mkdir(parents=True)
+        shared.mkdir(parents=True)
+
+        problems = found(shared, check=FilesArePrivate(system="win32", home=home))
+
+        assert len(problems) == 1 and "вне профиля" in problems[0] and "XDG_" in problems[0]
