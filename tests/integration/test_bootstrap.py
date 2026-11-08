@@ -31,6 +31,7 @@ class TestBootstrap:
 
         assert (tmp_path / "state" / "jericho" / "journal.jsonl").exists()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="права 0700/0600 — договор POSIX; на Windows — профиль пользователя (E015)")
     def test_state_is_closed_to_other_users_of_the_machine(self, installation: Installation, tmp_path: Path) -> None:
         """В папках разговор, заметки и журнал с фразами; папка, созданная раньше открытой, тоже закрывается."""
         earlier = tmp_path / "state" / "jericho"
