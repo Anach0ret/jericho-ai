@@ -60,7 +60,7 @@ Python 3.14 and [uv](https://docs.astral.sh/uv/); Linux for now (see Status). In
 (the name `jericho` on PyPI belongs to another package).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.7 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.8 jericho startproject my-assistant
 cd my-assistant
 git init -b main && git config core.hooksPath .githooks
 uv sync && uv run pytest -q
@@ -79,8 +79,8 @@ A personal project: issues are answered when possible, no guarantees on timing.
 **Platforms.** The framework is meant to be OS-independent: anything tied to a system is a battery — an optional
 module you leave out on another OS and write your own. Linux batteries: voice, D-Bus notifications (`notify`, the
 `desktop` extra), tasks on systemd timers (`tasks`). The core itself is tested only on Linux so far: it still uses
-POSIX mechanisms — file lock (`fcntl`), tool deadline (`SIGALRM`), stopping a program tree (`/proc`, process
-groups), `0600` file modes. So the core does not start on Windows yet and is untested on macOS (stopping a program
+POSIX mechanisms — tool deadline (`SIGALRM`), stopping a program tree (`/proc`, process groups), `stop` of a phrase
+(a signal), `0600` file modes. The file lock and standard folders already work on every OS. So the core does not start on Windows yet and is untested on macOS (stopping a program
 tree is incomplete there); moving these to cross-platform ones is the next big piece of work.
 
 ## License

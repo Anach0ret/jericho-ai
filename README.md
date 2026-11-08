@@ -57,7 +57,7 @@
 версии (имя `jericho` в PyPI занято другим пакетом).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.7 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.8 jericho startproject my-assistant
 cd my-assistant
 git init -b main && git config core.hooksPath .githooks
 uv sync && uv run pytest -q
@@ -120,8 +120,8 @@ class SendReport(Tool[SendReportRequest]):
 **Платформы.** Каркас задуман без привязки к ОС: то, что зависит от системы, — батарейки, необязательные модули,
 которые на другой ОС не включают, а пишут свои. Батарейки под Linux — голос, уведомления по D-Bus (`notify`,
 extra `desktop`), задачи на таймерах systemd (`tasks`). Само ядро пока проверяется только на Linux: в нём ещё есть
-механизмы POSIX — замок файла (`fcntl`), срок ручки (`SIGALRM`), остановка дерева программ (`/proc`, группы
-процессов), права файлов `0600`. Поэтому на Windows ядро пока не запускается, на macOS не проверялось (остановка
+механизмы POSIX — срок ручки (`SIGALRM`), остановка дерева программ (`/proc`, группы процессов), остановка фразы
+командой `stop` (сигнал), права файлов `0600`. Замок файла и стандартные папки — уже для всех ОС. Поэтому на Windows ядро пока не запускается, на macOS не проверялось (остановка
 дерева программ там неполная); перевод этих мест на кроссплатформенные — следующая большая работа.
 
 ## Что здесь

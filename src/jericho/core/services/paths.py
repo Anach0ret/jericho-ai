@@ -2,10 +2,49 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
+
+import platformdirs
+
+
+@dataclass(frozen=True, slots=True)
+class UserDirs:
+    """Где по правилам ОС лежат файлы пользователя: долгие, до выхода из системы и настройки машины.
+
+    Явно заданные переменные XDG главнее на любой ОС — так их задают тесты и те, кто хочет свои места. Без них на
+    macOS и Windows — правила этих ОС (`platformdirs`), на Linux и прочих — умолчания XDG. Умолчания XDG — свои, а не
+    `platformdirs`: тот читает только окружение процесса, а сборке ядра окружение передаётся (и на Linux пути те же).
+    """
+
+    NATIVE: ClassVar[tuple[str, ...]] = ("darwin", "win32")
+
+    state: Path             # то, что живёт долго
+    runtime: Path | None    # то, что живёт до выхода из системы; None — такой папки нет (запуск без входа в систему)
+    config: Path            # файлы машины
+
+    @classmethod
+    def find(cls, environment: Mapping[str, str], home: Path, system: str = sys.platform) -> UserDirs:
+        default = cls.native() if system in cls.NATIVE else cls(home / ".local/state", None, home / ".config")
+        return cls(
+            cls._named(environment, "XDG_STATE_HOME") or default.state,
+            cls._named(environment, "XDG_RUNTIME_DIR") or default.runtime,
+            cls._named(environment, "XDG_CONFIG_HOME") or default.config,
+        )
+
+    @classmethod
+    def native(cls) -> UserDirs:
+        return cls(
+            Path(platformdirs.user_state_dir()), Path(platformdirs.user_runtime_dir()), Path(platformdirs.user_config_dir())
+        )
+
+    @staticmethod
+    def _named(environment: Mapping[str, str], variable: str) -> Path | None:
+        value = environment.get(variable)
+        return Path(value) if value else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,12 +59,16 @@ class Paths:
     sessions_dir: Path | None = None    # сеансы всех пользователей (`for_user`); пусто — сеанс один, это `runtime_dir`
 
     @classmethod
-    def under_xdg(cls, name: str, environment: Mapping[str, str], home: Path) -> Paths:
-        """Стандартные места по правилам XDG; `name` — имя папки в каждом из них."""
-        state = Path(environment.get("XDG_STATE_HOME") or home / ".local/state") / name
-        session = environment.get("XDG_RUNTIME_DIR")      # нет папки сеанса (запуск без входа в систему) — рядом с долгими
-        runtime = Path(session) / name if session else state / "run"
+    def under(cls, name: str, dirs: UserDirs) -> Paths:
+        """Стандартные места ОС (`UserDirs`); `name` — имя папки в каждом из них."""
+        state = dirs.state / name
+        runtime = dirs.runtime / name if dirs.runtime else state / "run"      # нет папки сеанса — рядом с долгими
         return cls(state, runtime)
+
+    @classmethod
+    def under_xdg(cls, name: str, environment: Mapping[str, str], home: Path) -> Paths:
+        """Места по правилам XDG — как `under` на Linux при любой ОС: для тестов и инструментов с явным окружением."""
+        return cls.under(name, UserDirs.find(environment, home, system="linux"))
 
     @property
     def all_sessions(self) -> Path:

@@ -193,5 +193,6 @@ class ProjectScaffold:
             "\n[tool.uv.sources]\n"
             "# Каркас из исходников рядом — машина разработки. На другой машине вместо этого раздела в dependencies:\n"
             f'# "{DISTRIBUTION} @ git+https://github.com/Anach0ret/jericho-ai@vX.Y.Z".\n'
-            f'{DISTRIBUTION} = {{ path = "{self._framework_dir}", editable = true }}\n'
+            # Путь с «/»: обратные слэши Windows в строке TOML — escape-последовательности, uv понимает «/» везде.
+            f'{DISTRIBUTION} = {{ path = "{self._framework_dir.as_posix()}", editable = true }}\n'
         )

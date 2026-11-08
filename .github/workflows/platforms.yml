@@ -1,0 +1,64 @@
+# Каркас на macOS и Windows: импорт без extras, тесты, проект из образца и установка wheel в чистое окружение — то же,
+# что ci.yml делает на Linux. Отдельно от ci.yml, пока ядро переводится на кроссплатформенные механизмы: красное здесь
+# не закрывает pull request и не красит бейдж. Шаги — в bash на всех ОС, пути к программам окружения — через uv.
+name: platforms
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    # В приватном репозитории минуты macOS и Windows платные — проверка идёт только в публичном.
+    if: ${{ !github.event.repository.private }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          version: "0.12.5"
+      - name: Импорт ядра без extras
+        run: |
+          uv sync --locked
+          uv run python -c "import jericho.core, jericho.core.testing, jericho.backends.scripted"
+      - name: Тесты
+        if: ${{ !cancelled() }}
+        run: |
+          uv sync --all-extras --locked
+          uv run pytest -q
+      - name: Проект из образца
+        if: ${{ !cancelled() }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          uv run --project "$GITHUB_WORKSPACE" jericho startproject ci-demo
+          cd ci-demo
+          uv sync
+          uv run pytest -q
+          uv run ci_demo check
+          uv run ci_demo ask "привет"
+      - name: Wheel в чистом окружении
+        if: ${{ !cancelled() }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          uv build "$GITHUB_WORKSPACE" --out-dir dist
+          uv venv --python 3.14 clean
+          uv pip install --python clean dist/*.whl
+          uv run --python clean --no-project jericho startproject wheel-demo
+          cd wheel-demo
+          uv pip install --python ../clean --no-deps -e .
+          uv pip install --python ../clean pytest
+          uv run --python ../clean --no-project python -m pytest -q
+          uv run --python ../clean --no-project wheel_demo check
+          uv run --python ../clean --no-project wheel_demo ask "привет"

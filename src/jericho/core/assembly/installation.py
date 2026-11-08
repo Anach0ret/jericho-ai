@@ -15,6 +15,7 @@ from pathlib import Path
 
 from jericho.core.conf.loader import SettingsLoader
 from jericho.core.conf.settings import Settings
+from jericho.core.services.paths import UserDirs
 from jericho.core.services.phrase_deadline import PhraseDeadline
 from jericho.core.services.program import Program
 
@@ -52,7 +53,7 @@ class Installation:
             )
         name = cls._program(cls._project_package(settings_module))
         named = environment.get(cls.CONFIG_VARIABLE)
-        config_dir = Path(named).expanduser() if named else Path(environment.get("XDG_CONFIG_HOME") or home / ".config") / name
+        config_dir = Path(named).expanduser() if named else UserDirs.find(environment, home).config / name
         return cls(
             settings_module=settings_module,
             machine_files=(config_dir / "local.toml", config_dir / "secrets.toml"),
@@ -101,7 +102,12 @@ class Installation:
 
     @property
     def user_config_home(self) -> Path:
-        return Path(self.environment.get("XDG_CONFIG_HOME") or self.home / ".config")
+        return self.dirs.config
+
+    @property
+    def dirs(self) -> UserDirs:
+        """Стандартные места ОС для файлов пользователя — с учётом окружения этого запуска."""
+        return UserDirs.find(self.environment, self.home)
 
     @property
     def project_package(self) -> str:
