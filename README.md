@@ -45,7 +45,7 @@ guarantees are for Linux — see [Platforms](#platforms). The framework is insta
 name `jericho` on PyPI belongs to another package).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.16 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.17 jericho startproject my-assistant
 cd my-assistant
 uv sync
 uv run my_assistant ask "hello"      # the "scripted" backend: no model, no key
@@ -80,8 +80,9 @@ Tests, type checks and the pre-commit hook are for development — see [CONTRIBU
   (irreversible or leaves the machine) runs only after the user says "yes". The "yes" is recognised by code from
   the user's own words, not by the model; it is single-use and bound to the named action. Unattended runs
   (scheduled tasks) never perform `EFFECT` unless the project allows a tool by name.
-- **Private data goes only to a trusted model.** Fields with private correspondence are not written to the journal
-  (crash records included) and by default reach only the main model; a fallback gets them only if listed in
+- **Private data and local files go only to a trusted model.** Fields with private correspondence are not written to
+  the journal (crash records included); they and the contents of local files by default reach only the main model; a
+  fallback gets them only if listed in
   `agent.private_backends` ([example](docs/backends.md#запасные-бэкенды)). After private data — or after a local
   file, if the same phrase also brought foreign text — anything that leaves the machine needs a "yes".
 - **Foreign text is tracked.** Web pages, emails and program output are marked as foreign: instructions inside them

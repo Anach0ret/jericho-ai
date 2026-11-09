@@ -34,9 +34,11 @@ class ReadChat(Tool[ToolRequest]):
         return ToolResult.success(messages=["буду в 7"], memo="прочитал чат")
 
 
-def call(active: str, allowed: tuple[str, ...] | None = ("claude_cli",), main: str = "claude_cli") -> ToolResult:
+def call(
+    active: str, allowed: tuple[str, ...] | None = ("claude_cli",), main: str = "claude_cli", tool: Tool[ToolRequest] | None = None,
+) -> ToolResult:
     policy = RiskPolicy(ConfirmationGate(Confirmations(), "run-1"), private_backends=allowed, active=ActiveBackend(active, main))
-    return ToolDispatcher((Refusals,), policy=policy).call(ReadChat(), {})
+    return ToolDispatcher((Refusals,), policy=policy).call(tool or ReadChat(), {})
 
 
 class TestPrivateDataPolicy:
@@ -57,6 +59,14 @@ class TestPrivateDataPolicy:
 
     def test_a_spare_named_in_the_list_gets_it(self) -> None:
         assert call("openai_api", allowed=("claude_cli", "openai_api")).ok
+
+    def test_spare_model_does_not_get_local_files(self) -> None:
+        """Аудит 27.10.2026, находка 5: при сбое Claude файлы `~/Документы` уходили запасной модели."""
+        result = call("openai_api", tool=ReadFile())
+
+        assert result.error == RiskPolicy.UNTRUSTED_MODEL and "файлы с машины" in str(result.data["detail"])
+        assert call("claude_cli", tool=ReadFile()).ok and call("", tool=ReadFile()).ok
+        assert call("openai_api", allowed=("claude_cli", "openai_api"), tool=ReadFile()).ok
 
     def test_fallback_names_the_backend_that_answers(self) -> None:
         from jericho.core.agent.protocols import ModelUnavailable
