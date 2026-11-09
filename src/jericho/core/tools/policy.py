@@ -8,7 +8,7 @@
 | READ, NAVIGATE, CHANGE | выполняется | выполняется |
 | EFFECT, approval=ASK | только после «да» в следующей фразе | отказ `nobody_to_ask`, если ручка не названа в `unattended_effects` |
 | EFFECT, approval=TOOL | ручка сама спрашивает, когда нужно | отказ `nobody_to_ask`, если ручка не названа в `unattended_effects` |
-| любая с `private` (личные данные) | только если фразу ведёт бэкенд из `agent.private_backends` (не назван — основной) или модели в цепочке нет | так же |
+| любая с `private` (личные данные) или `local` (файлы с машины) | только если фразу ведёт бэкенд из `agent.private_backends` (не назван — основной) или модели в цепочке нет | так же |
 | выше предела пользователя (`user_risk`, `default_user_risk`) | отказ `not_allowed_for_user` — «да» не снимает | так же |
 | `outbound` после личных данных в этой фразе | только после «да»: внедрённая в переписку команда не унесёт её в адресе ссылки | отказ `nobody_to_ask` |
 | `outbound` после файлов с машины (`local`) и чужого текста в этой фразе | только после «да»: команда со страницы не унесёт прочитанный файл | отказ `nobody_to_ask` |
@@ -84,8 +84,9 @@ class UserCeiling:
 
 
 class TrustedModel:
-    """Личные данные (`Tool.private`) — только бэкендам из `agent.private_backends`; список не назван — только
-    основному бэкенду цепочки. Запасной (часто бесплатный, может учиться на переписке) — только если проект назвал его
+    """Личные данные (`Tool.private`) и файлы с машины (`Tool.local`) — только бэкендам из `agent.private_backends`;
+    список не назван — только основному бэкенду цепочки. Файлы — с 0.64.17: при сбое основной модели содержимое
+    `~/Документы` уходило запасной (бесплатной, может учиться на данных) — аудит 27.10.2026, находка 5. Запасной (часто бесплатный, может учиться на переписке) — только если проект назвал его
     явно: раньше без списка разрешалось любому, а README обещал обратное (ревью 02.11.2026, П5 №7; решение владельца).
     Вызов без модели в цепочке (человек в терминале, кнопка сценария) пропускается: данные остаются на машине."""
 
@@ -98,11 +99,12 @@ class TrustedModel:
     def check(self, call: ToolCall) -> Verdict:
         name = self._active.name
         trusted = self._named if self._named is not None else {self._active.main}
-        if not call.tool.private or not name or name in trusted:
+        if not (call.tool.private or call.tool.local) or not name or name in trusted:
             return Verdict.NEXT
+        what = "личные данные" if call.tool.private else "файлы с машины"
         raise ToolRefusal(
             self.UNTRUSTED_MODEL, backend=name,
-            detail=f"личные данные не отдаю модели {name}: скажи, что это сделаешь, когда снова будет основная модель",
+            detail=f"{what} не отдаю модели {name}: скажи, что это сделаешь, когда снова будет основная модель",
         )
 
 
