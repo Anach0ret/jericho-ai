@@ -40,17 +40,17 @@ jobs:
           PYTHONWARNDEFAULTENCODING: "1"     # файл без encoding — ошибка теста (pyproject.toml, filterwarnings)
         run: |
           uv sync --all-extras --locked
-          uv run pytest -q
+          uv run --no-sync pytest -q
       - name: Проект из образца
         if: ${{ !cancelled() }}
         working-directory: ${{ runner.temp }}
         run: |
-          uv run --project "$GITHUB_WORKSPACE" jericho startproject ci-demo
+          uv run --no-sync --project "$GITHUB_WORKSPACE" jericho startproject ci-demo
           cd ci-demo
           uv sync
-          uv run pytest -q
-          uv run ci_demo check
-          uv run ci_demo ask "привет"
+          uv run --no-sync pytest -q
+          uv run --no-sync ci_demo check
+          uv run --no-sync ci_demo ask "привет"
       - name: Wheel в чистом окружении
         if: ${{ !cancelled() }}
         working-directory: ${{ runner.temp }}
@@ -61,7 +61,7 @@ jobs:
           uv run --python clean --no-project jericho startproject wheel-demo
           cd wheel-demo
           uv pip install --python ../clean --no-deps -e .
-          uv pip install --python ../clean pytest
+          uv pip install --python ../clean "pytest==9.1.1"
           uv run --python ../clean --no-project python -m pytest -q
           uv run --python ../clean --no-project wheel_demo check
           uv run --python ../clean --no-project wheel_demo ask "привет"

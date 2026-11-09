@@ -64,6 +64,7 @@ class Scaffold:
         Возвращает созданные и изменённые файлы. В `tools()` навыка ручку вписывает автор: там её нужно
         собрать с зависимостями, а это уже не данные, а код.
         """
+        self._check_name(skill)      # имя, а не путь: `../x` увёл бы запись за папку навыков
         self._check_name(tool)
         directory = self._skills_dir / skill
         if not (directory / "skill.py").exists():
