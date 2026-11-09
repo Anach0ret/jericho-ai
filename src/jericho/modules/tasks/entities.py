@@ -29,7 +29,7 @@ class DeferredState(StrEnum):
         return _AFTER[status]
 
     @property
-    def failed(self) -> bool:
+    def run_failed(self) -> bool:
         """Не выполнено по вине запуска: планировщик узнаёт это по коду выхода. Опоздавшее (`missed`) — не сбой
         запуска: ассистент был выключен, и пользователь уже получил сообщение."""
         return self in (DeferredState.REFUSED, DeferredState.FAILED)
