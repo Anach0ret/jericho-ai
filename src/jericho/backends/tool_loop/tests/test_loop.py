@@ -1,4 +1,6 @@
-from collections.abc import Sequence
+import subprocess
+import sys
+from collections.abc import Mapping, Sequence
 from typing import Self
 
 import pytest
@@ -200,3 +202,53 @@ def test_call_with_broken_arguments_is_not_executed() -> None:
     loop(model, tool).ask("промпт", "открой")
 
     assert model.answers[0][0].content["error"] == ToolLoop.INVALID_ARGUMENTS and tool.opened == []
+
+
+def written(text: str) -> Mapping[str, object] | None:
+    """Что цикл принял за ответ, написанный текстом; None — не принял и напомнил вызвать reply."""
+    answer = loop(Model(ModelTurn(text=text), calls(("reply", DONE))), Open()).ask("промпт", "привет")
+    return answer.structured if answer.meta.get("reply_as_text") else None
+
+
+class TestReplyWrittenAsText:
+    """Ограда ```json вокруг ответа текстом: какие варианты принимаются, а какой текст JSON не считается."""
+
+    @pytest.mark.parametrize("text", [
+        '{"status": "done", "message": "Открыл"}',
+        '  {"status": "done", "message": "Открыл"}\n',
+        '```json\n{"status": "done", "message": "Открыл"}\n```',
+        '```\n{"status": "done", "message": "Открыл"}\n```',
+        '```json{"status": "done", "message": "Открыл"}```',
+        '```json   \n\n {"status": "done", "message": "Открыл"} \n\n ```',
+        '\n```json\n{"status": "done", "message": "Открыл"}\n```\n',
+        '```json\n {"status": "done", "message": "Открыл"} \n```',
+    ])
+    def test_object_bare_or_fenced_is_taken(self, text: str) -> None:
+        assert written(text) == DONE
+
+    @pytest.mark.parametrize("text", [
+        "Готово!",
+        "``````",
+        "```json\n```",
+        '```json\n{"status": "done", "message": "Открыл"}',
+        '{"status": "done", "message": "Открыл"}\n```',
+        'Вот ответ: ```json\n{"status": "done", "message": "Открыл"}\n```',
+        '```json\n{"status": "done", "message": "Открыл"}\n``` и ещё слово',
+        '```JSON\n{"status": "done", "message": "Открыл"}\n```',
+        '```python\n{"status": "done", "message": "Открыл"}\n```',
+        '```json\n["done"]\n```',
+        "```json\n" + " " * 50 + "x",
+    ])
+    def test_anything_else_is_not_taken_for_a_reply(self, text: str) -> None:
+        assert written(text) is None
+
+    def test_unclosed_fence_with_long_whitespace_is_parsed_in_linear_time(self) -> None:
+        """Sonar S8786: прежняя регулярка на незакрытой ограде росла взрывно (4000 пробелов — 49 с у Codex).
+
+        Проба — в отдельном процессе с конечным сроком: зависание не вешает основной прогон тестов.
+        """
+        probe = (
+            "from jericho.backends.tool_loop.tests.test_loop import written\n"
+            "assert written('```json\\n' + ' ' * 200_000 + 'x') is None\n"
+        )
+        subprocess.run([sys.executable, "-c", probe], check=True, timeout=20)

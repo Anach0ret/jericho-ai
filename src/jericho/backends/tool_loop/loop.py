@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 import json
-import re
 import time
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
@@ -46,7 +45,7 @@ class ToolLoop:
     OUT_OF_TIME = "out_of_time"
     TOO_MANY_CALLS = "too_many_calls"
     RETRY = "ответ не по форме — верни его ещё раз вызовом reply; новые действия больше не выполняются"
-    _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)      # ответ текстом в ограде ```json
+    _FENCE, _FENCE_TAG = "```", "json"      # ответ текстом в ограде ```json
 
     def __init__(
         self,
@@ -155,13 +154,23 @@ class ToolLoop:
 
     def _written_reply(self, text: str) -> dict[str, object] | None:
         """Ответ, написанный текстом: один JSON-объект, можно в ограде ```json. Проверит его форма ответа."""
-        text = text.strip()
-        fenced = self._FENCE.match(text)
         try:
-            parsed = json.loads(fenced.group(1) if fenced else text)
+            parsed = json.loads(self._unfenced(text.strip()))
         except ValueError:
             return None
         return parsed if isinstance(parsed, dict) else None
+
+    @classmethod
+    def _unfenced(cls, text: str) -> str:
+        """Тело ограды ```json … ``` без пробелов по краям; не ограда — текст как есть.
+
+        Строками, а не регуляркой: `^```(?:json)?\\s*(.*?)\\s*```$` на незакрытой ограде с длинными пробелами
+        перебирала взрывно (Sonar S8786; 4000 пробелов — 49 с).
+        """
+        fence = cls._FENCE
+        if len(text) < 2 * len(fence) or not (text.startswith(fence) and text.endswith(fence)):
+            return text
+        return text[len(fence) : -len(fence)].removeprefix(cls._FENCE_TAG).strip()
 
     def _meta(self, turns: int, made: list[dict[str, object]], usage: Usage) -> dict[str, object]:
         return {
