@@ -98,13 +98,17 @@ class ToolDispatcher:
         except ToolTimeout:
             # Что успело произойти до обрыва, неизвестно: модель должна сказать об этом, а не повторять вызов.
             detail = "не уложился в срок; что успело произойти, неизвестно — не повторяй, скажи об этом"
-            return self._failed(tool, arguments, ToolResult.failure(self.TOOL_TIMEOUT, seconds=self._deadline.seconds, detail=detail))
+            failed = ToolResult.failure(self.TOOL_TIMEOUT, seconds=self._deadline.seconds, detail=detail)
+            self._journal_failure(tool, arguments, failed)
+            return failed
         except Exception as error:
             # Текст исключения модели не отдаём: в нём может оказаться что угодно. Подробности — в журнале.
-            return self._failed(tool, arguments, ToolResult.failure(self.TOOL_FAILED, detail=type(error).__name__))
+            failed = ToolResult.failure(self.TOOL_FAILED, detail=type(error).__name__)
+            self._journal_failure(tool, arguments, failed)
+            return failed
 
     @staticmethod
-    def _failed(tool: Tool[Any], arguments: Mapping[str, object], result: ToolResult) -> ToolResult:
+    def _journal_failure(tool: Tool[Any], arguments: Mapping[str, object], result: ToolResult) -> None:
         """Запись о вызове, который оборвался мимо слоёв; вызывается из `except` — трассировка попадает в журнал.
 
         Личные поля скрыты, как у слоя журнала. У ручки с личными полями — и текст исключения: в нём мог оказаться
@@ -113,11 +117,10 @@ class ToolDispatcher:
         data = {"tool": tool.name, "params": PrivateFields(tool.private).mask(arguments), "result": result.to_dict()}
         if not tool.private:
             logger.exception("tool", extra={"data": data})
-            return result
+            return
         error = sys.exc_info()[1]
         trace = "".join(traceback.format_tb(error.__traceback__)) if error is not None else ""
         logger.error("tool", extra={"data": {**data, "private": True, "error": type(error).__name__, "trace": trace}})
-        return result
 
     def _run(self, call: ToolCall) -> ToolResult:
         request = self._request(call)

@@ -51,7 +51,7 @@ class TaskCommand:
         task = self._tasks[args.task]
         reply = self._handle_phrase.execute(task.text)
         self._outputs[args.task].deliver(task.text, reply)
-        if DeferredState.after(reply.status).failed:      # отказ — тоже неуспех: планировщик должен его видеть
+        if DeferredState.after(reply.status).run_failed:      # отказ — тоже неуспех: планировщик должен его видеть
             raise SystemExit(1)
 
 

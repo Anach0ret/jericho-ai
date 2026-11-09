@@ -68,7 +68,7 @@ class DueCommand:
             states = self._run_due()
         finally:
             self._runs.release()
-        if any(state.failed for state in states):
+        if any(state.run_failed for state in states):
             raise SystemExit(1)
 
     def _run_due(self) -> list[DeferredState]:
