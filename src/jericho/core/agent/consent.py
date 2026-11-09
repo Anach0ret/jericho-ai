@@ -84,8 +84,8 @@ class PhraseConsent:
         "не делай", "нет не делай",
         "no", "nope", "cancel", "stop", "don t", "do not", "no thanks", "no don t",
     })
+    POLITE = frozenset({"пожалуйста", "please"})     # слова вежливости — целыми словами, ответ они не меняют
     _NOISE = re.compile(r"[^\w\s]")
-    _POLITE = re.compile(r"\s*\b(?:пожалуйста|please)\b\s*")
 
     def __init__(self, gate: ConfirmationGate) -> None:
         self._gate = gate
@@ -96,8 +96,7 @@ class PhraseConsent:
         `question` — id вопроса, под которым нажата кнопка: ответ засчитывается только ему. Проверка — здесь, под замком
         фразы: пока висело уведомление, другая фраза могла сменить вопрос (ревью 02.11.2026, П3b №1).
         """
-        words = self._POLITE.sub(" ", self._NOISE.sub(" ", phrase.casefold())).split()
-        said = " ".join(words)
+        said = " ".join(word for word in self._NOISE.sub(" ", phrase.casefold()).split() if word not in self.POLITE)
         if question and said in self.YES | self.NO and not self._still_waits(question):
             return Heard("stale")
         if said in self.YES and (approved := self._gate.user_said_yes()) is not None:

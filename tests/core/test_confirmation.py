@@ -1,4 +1,6 @@
 import logging
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -249,6 +251,49 @@ class TestYesIsHeardByCode:
         ConfirmationGate(store, "run-1").consent("erase", {"what": "черновик"}, "стереть черновик")
 
         assert not PhraseConsent(ConfirmationGate(store, "run-2")).hear("да, и ещё открой почту")
+
+
+def heard(said: str) -> str:
+    """Что код услышал во фразе на ждущий вопрос «стереть черновик»."""
+    store = Confirmations()
+    ConfirmationGate(store, "run-1").consent("erase", {"what": "черновик"}, "стереть черновик")
+    return PhraseConsent(ConfirmationGate(store, "run-2")).hear(said).answer
+
+
+class TestPoliteWords:
+    """«Пожалуйста» и «please» не меняют ответ, но и не склеивают согласие из чужих слов."""
+
+    @pytest.mark.parametrize(("said", "answer"), [
+        ("да, пожалуйста", "yes"),
+        ("пожалуйста, да", "yes"),
+        ("Да пожалуйста пожалуйста!", "yes"),
+        ("да,\n\tпожалуйста", "yes"),
+        ("yes please", "yes"),
+        ("Please, go ahead.", "yes"),
+        ("да, please, отправляй", "yes"),
+        ("нет, пожалуйста", "no"),
+        ("Please cancel", "no"),
+        ("пожалуйста", ""),
+        ("please please", ""),
+        ("да пожалуйстаааа", ""),
+        ("пожалуйстада", ""),
+        ("да_пожалуйста", ""),
+        ("да, пожалуйста, и открой почту", ""),
+        ("пожалуйста не надо, да", ""),
+    ])
+    def test_polite_word_is_dropped_only_as_a_whole_word(self, said: str, answer: str) -> None:
+        assert heard(said) == answer
+
+    def test_long_whitespace_is_heard_in_linear_time(self) -> None:
+        """Sonar S8786: `\\s*\\b(?:пожалуйста|please)\\b\\s*` на длинных пробелах росла квадратично.
+
+        Проба — в отдельном процессе с конечным сроком: зависание не вешает основной прогон тестов.
+        """
+        probe = (
+            "from tests.core.test_confirmation import heard\n"
+            "assert heard('да' + ' ' * 300_000 + 'x') == ''\n"
+        )
+        subprocess.run([sys.executable, "-c", probe], check=True, timeout=20)
 
 
 class TestExpiredQuestion:
