@@ -131,6 +131,16 @@ class TestStartTool:
         with pytest.raises(ScaffoldError, match="startskill calendar"):
             scaffold.tool("calendar", "add_event")
 
+    @pytest.mark.parametrize("skill", ["../media", "media/../../elsewhere", "/tmp/media", "Media"])
+    def test_skill_is_a_name_not_a_path(self, scaffold: Scaffold, tmp_path: Path, skill: str) -> None:
+        scaffold.skill("media", "Музыка.")
+        before = sorted(tmp_path.rglob("*"))
+
+        with pytest.raises(ScaffoldError, match="имя — латинские строчные"):
+            scaffold.tool(skill, "play_pause")
+
+        assert sorted(tmp_path.rglob("*")) == before
+
     def test_existing_tool_is_not_overwritten(self, scaffold: Scaffold) -> None:
         scaffold.skill("media", "Музыка.")
         scaffold.tool("media", "play_pause")

@@ -45,7 +45,7 @@ guarantees are for Linux — see [Platforms](#platforms). The framework is insta
 name `jericho` on PyPI belongs to another package).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.15 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.16 jericho startproject my-assistant
 cd my-assistant
 uv sync
 uv run my_assistant ask "hello"      # the "scripted" backend: no model, no key

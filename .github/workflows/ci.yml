@@ -26,9 +26,9 @@ jobs:
       - name: Тесты
         env:
           PYTHONWARNDEFAULTENCODING: "1"     # файл без encoding — ошибка теста (pyproject.toml, filterwarnings)
-        run: uv run pytest -q
+        run: uv run --no-sync pytest -q
       - name: Типы
-        run: uvx basedpyright --pythonpath .venv/bin/python src tests
+        run: uvx basedpyright@1.40.2 --pythonpath .venv/bin/python src tests
       - name: Линтер
         run: uvx ruff@0.14.0 check src tests
 
@@ -48,11 +48,11 @@ jobs:
           "$GITHUB_WORKSPACE/.venv/bin/jericho" startproject ci-demo
           cd ci-demo
           uv sync
-          uv run pytest -q
-          uv run ci_demo check
-          uv run ci_demo startskill notes
-          uv run pytest -q
-          uv run ci_demo ask "привет"
+          uv run --no-sync pytest -q
+          uv run --no-sync ci_demo check
+          uv run --no-sync ci_demo startskill notes
+          uv run --no-sync pytest -q
+          uv run --no-sync ci_demo ask "привет"
 
   # Обычная установка, а не исходники: wheel собирается из sdist (`uv build`), ставится в пустое окружение без
   # группы dev и extras, и проект из образца проходит там свои тесты, `check` и сценарный `ask`. Так видно, что в
@@ -79,7 +79,7 @@ jobs:
           cd wheel-demo
           # Зависимость проекта — каркас по метке git; он уже стоит из wheel, поэтому проект — без зависимостей.
           uv pip install --python "$RUNNER_TEMP/clean/bin/python" --no-deps -e .
-          uv pip install --python "$RUNNER_TEMP/clean/bin/python" pytest
+          uv pip install --python "$RUNNER_TEMP/clean/bin/python" "pytest==9.1.1"
           "$RUNNER_TEMP/clean/bin/python" -m pytest -q
           "$RUNNER_TEMP/clean/bin/wheel_demo" check
           "$RUNNER_TEMP/clean/bin/wheel_demo" ask "привет"

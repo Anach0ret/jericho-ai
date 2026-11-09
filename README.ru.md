@@ -45,7 +45,7 @@ Jericho — каркас, а не готовая программа: кажды�
 (имя `jericho` в PyPI занято другим пакетом).
 
 ```bash
-uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.15 jericho startproject my-assistant
+uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.16 jericho startproject my-assistant
 cd my-assistant
 uv sync
 uv run my_assistant ask "привет"      # бэкенд «сценарий»: без модели и без ключа
