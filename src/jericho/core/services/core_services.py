@@ -9,6 +9,7 @@ from jericho.core.services.confirmation import ConfirmationGate
 from jericho.core.services.foreign import ForeignText
 from jericho.core.services.own_paths import OwnPaths
 from jericho.core.services.paths import Paths
+from jericho.core.services.run_facts import RunFacts
 from jericho.core.services.runner import CommandRunner
 from jericho.core.services.secrets import NoSecretStore, SecretStore
 from jericho.core.shared.registry import SharedServices
@@ -28,3 +29,4 @@ class CoreServices:
     secrets: SecretStore = field(default_factory=NoSecretStore)      # ключи и сессии — в связке ключей, а не в файле
     user: str = ""                     # чьё поручение (`JERICHO_USER`, у серверного — Telegram ID); пусто — ассистент одного человека
     own_paths: OwnPaths = field(default_factory=OwnPaths)       # папки самого ассистента: файловые ручки их не трогают (после `user`: позиционный вызов не сдвигается)
+    facts: RunFacts = field(default_factory=RunFacts)           # данные события для уведомления по итогам запуска (окно, фильтры)

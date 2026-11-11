@@ -1,6 +1,6 @@
 [project]
 name = "jericho-ai"
-version = "0.64.16"
+version = "0.65.0"
 description = "Каркас для ассистентов: модель получает набор действий, каждое проходит проверки в коде и остаётся в журнале"
 authors = [
     { name = "Anach0ret" }

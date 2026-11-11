@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
+from jericho.core.journal.entities import JournalEntry
 from jericho.core.journal.protocols import JournalReader
 
 
@@ -19,9 +22,14 @@ class PrivateRun:
         self._run_id = run_id
 
     def __call__(self) -> tuple[str, ...]:
-        memos: list[str] = []
-        for entry in self._journal.tail(self._TAIL):
-            if entry.run == self._run_id and entry.event == "tool" and entry.details.get("private"):
+        return self.memos(entry for entry in self._journal.tail(self._TAIL) if entry.run == self._run_id)
+
+    @classmethod
+    def memos(cls, entries: Iterable[JournalEntry]) -> tuple[str, ...]:
+        """Пометки личных вызовов среди этих записей — общий шаг с `RunTrail`."""
+        found: list[str] = []
+        for entry in entries:
+            if entry.event == "tool" and entry.details.get("private"):
                 memo = (entry.result or {}).get("memo")
-                memos.append(memo if isinstance(memo, str) and memo else self.TOUCHED)
-        return tuple(dict.fromkeys(memos))
+                found.append(memo if isinstance(memo, str) and memo else cls.TOUCHED)
+        return tuple(dict.fromkeys(found))

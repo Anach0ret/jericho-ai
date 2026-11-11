@@ -15,7 +15,7 @@
 ## 1. Создать проект
 
 ```
-$ uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.64.16 jericho startproject notes-helper
+$ uvx --from git+https://github.com/Anach0ret/jericho-ai@v0.65.0 jericho startproject notes-helper
 …
 Дальше: cd notes-helper && uv sync && uv run pytest -q && uv run notes_helper ask "привет"
 Как наполнять проект — в его AGENTS.md.
@@ -530,5 +530,6 @@ $ JERICHO_CONFIGURATION=DryRun uv run notes_helper ask "запиши купит�
   - `scripts` — быстрые сценарии: цепочки шагов-ручек без модели (и фразы для модели) — `run <имя>`, кнопкой в окне, голосом через `run_script`;
   - `tasks` — поручения по расписанию (`docs/tasks.md`);
   - `notes` — заметки самой модели;
-  - `inbox` — поручения сообщениями бота Telegram (`docs/inbox.md`).
+  - `inbox` — поручения сообщениями бота Telegram (`docs/inbox.md`);
+  - `notices` — ответ на сводку или тревогу — о ней (`docs/notices.md`).
 - Правила для агента, который будет наполнять проект, — в `AGENTS.md` проекта.

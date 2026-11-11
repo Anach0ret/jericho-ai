@@ -69,8 +69,9 @@ class HandlePhrase:
         self._wording = wording
         self.busy = AgentReply(ReplyStatus.FAILED, wording.busy)     # поручение не взято: другое ещё идёт — его можно повторить
 
-    def execute(self, phrase: str, question: str = "") -> AgentReply:
-        """`question` — id вопроса «да?», под которым нажата кнопка: ответ — только ему (`PhraseConsent.hear`)."""
+    def execute(self, phrase: str, question: str = "", reply_to: str = "") -> AgentReply:
+        """`question` — id вопроса «да?», под которым нажата кнопка: ответ — только ему (`PhraseConsent.hear`).
+        `reply_to` — номер сообщения транспорта, на которое человек ответил: его разбирают слои (`notices`)."""
         if not phrase.strip():
             return AgentReply(ReplyStatus.IGNORED)
         if not self._lock.acquire():
@@ -78,12 +79,12 @@ class HandlePhrase:
             return self.busy
         self._deadline.start()
         try:
-            return self._handle(phrase, question)
+            return self._handle(phrase, question, reply_to)
         finally:
             self._deadline.stop()
             self._lock.release()
 
-    def _handle(self, phrase: str, question: str) -> AgentReply:
+    def _handle(self, phrase: str, question: str, reply_to: str = "") -> AgentReply:
         started = time.perf_counter()
         self._journal.received(phrase, self._attended)
         heard = self._consent.hear(phrase, question) if self._consent is not None and self._attended else Heard()
@@ -91,7 +92,7 @@ class HandlePhrase:
         answered = self._consent is not None and self._consent.answers(heard)
         handler = chain(self._layers, partial(self._consent, heard)) if answered and self._consent is not None else self._handler
         try:
-            outcome = handler(Task(text=phrase, message=message, attended=self._attended))
+            outcome = handler(Task(text=phrase, message=message, attended=self._attended, reply_to=reply_to))
         except KeyboardInterrupt:     # `stop` или Ctrl+C: слои не запоминают оборванное поручение
             outcome = Outcome(AgentReply(ReplyStatus.STOPPED, self._wording.stopped), {"stopped": True})
         reply = self._question.settle(outcome.reply) if self._question is not None else outcome.reply

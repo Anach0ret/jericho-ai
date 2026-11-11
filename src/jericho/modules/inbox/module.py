@@ -19,6 +19,7 @@ from jericho.core.checks.base import Check
 from jericho.core.management.base import Command
 from jericho.core.modules.config import ModuleConfig, ModuleServices
 from jericho.core.services.mailbox import Mailbox
+from jericho.core.services.sent import SentLog
 from jericho.modules.inbox.adapters.process import ProcessAnswerer
 from jericho.modules.inbox.checks import SubscriptionIsNotShared
 from jericho.modules.inbox.command import AnswerCommand, InboxCommand
@@ -54,7 +55,8 @@ class InboxModule(ModuleConfig):
             Installation.USER_VARIABLE,
             timeout=self.services.settings.agent.timeout + settings.answer_margin,
         )
-        reception = Reception(inbox, outbox, answerer, settings.users, settings.max_text)
+        sent = SentLog.at(self.services.core.paths.state_dir)
+        reception = Reception(inbox, outbox, answerer, settings.users, settings.max_text, sent)
         questions = QuestionWatch(
             settings.users, self.services.core.paths, timedelta(minutes=self.services.settings.confirmation_minutes),
             timedelta(minutes=settings.remind_minutes) if settings.remind_minutes else None, outbox,
