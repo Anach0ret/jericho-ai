@@ -77,7 +77,7 @@ class AnswerCommand:
         if path is None:
             return              # запросов не будет: приём остановлен
         request = Request.parse(Mailbox.read(path))
-        reply = self._handle_phrase.execute(request.text, request.answers)
+        reply = self._handle_phrase.execute(request.text, request.answers, request.reply_to)
         self._outbox.post(request.reply(reply, self._gate.waiting()))
 
     @staticmethod

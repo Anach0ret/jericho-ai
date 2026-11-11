@@ -13,12 +13,14 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from jericho.core.journal.run_trail import RunTrail
 from jericho.core.management.base import Command
 from jericho.core.modules.config import ModuleConfig, ModuleServices
 from jericho.core.services.adapters.file_lock import FileLock
 from jericho.core.services.adapters.memory_list import MemoryList
 from jericho.core.services.output import output_for
 from jericho.core.services.paths import Paths
+from jericho.core.services.sent import SentLog
 from jericho.core.tools.tool import Tool
 from jericho.modules.tasks.adapters.json_file import JsonDeferredStore
 from jericho.modules.tasks.adapters.unit_files import DirectoryUnitFiles, DryRunUnitFiles
@@ -74,13 +76,15 @@ class TasksModule(ModuleConfig):
         tasks, deferred, services = self.settings.items, self.settings.deferred, self.services
         output, project = services.settings.output, services.program.name
         commands: list[Command] = []
+        # Ушедшее в ящик — в журнал отправленного со следом запуска: на вопрос о сводке модуль `notices` покажет её.
+        sent, trail = SentLog.at(services.core.paths.state_dir), RunTrail(services.journal, services.run_id)
         if tasks:
-            outputs = {name: output_for(task.output or output, project) for name, task in tasks.items()}
+            outputs = {name: output_for(task.output or output, project, sent, trail) for name, task in tasks.items()}
             commands.append(TaskCommand(tasks, handle_phrase, outputs, services.relaunch))
         if deferred.enabled:
             commands.append(DeferredCommand(self.queue))
             commands.append(DueCommand(
-                self.queue, handle_phrase, output_for(deferred.output or output, project), services.relaunch,
+                self.queue, handle_phrase, output_for(deferred.output or output, project, sent, trail), services.relaunch,
                 FileLock(services.core.paths.state_dir / self.RUNS_LOCK), deferred, services.core.clock.now,
             ))
         if tasks or deferred.enabled or self.settings.commands:

@@ -10,6 +10,7 @@ from jericho.core.agent.entities import AgentReply, ReplyStatus
 from jericho.core.conf.settings import AgentSettings, OutputSettings, Settings, SettingsSection, SkillSettings
 from jericho.core.conf.types import CommandLine, ExpandedPath
 from jericho.core.errors import PortError
+from jericho.core.journal.run_trail import Trail
 from jericho.core.management.base import Command
 from jericho.core.prompting.protocols import PromptContext
 from jericho.core.services.clock import Clock
@@ -18,8 +19,10 @@ from jericho.core.services.core_services import CoreServices
 from jericho.core.services.foreign import ForeignText
 from jericho.core.services.output import Output, output_for
 from jericho.core.services.paths import Paths
+from jericho.core.services.run_facts import RunFacts
 from jericho.core.services.runner import CommandError, CommandRunner
 from jericho.core.services.secrets import MemorySecretStore, SecretError, SecretStore
+from jericho.core.services.sent import SentLog
 from jericho.core.shared.config import ServiceConfig
 from jericho.core.shared.registry import ServiceError, SharedServices
 from jericho.core.skills.config import SkillConfig
@@ -59,9 +62,11 @@ __all__ = [
     "PromptContext",
     "ReplyStatus",
     "Risk",
+    "RunFacts",
     "RunnerConsole",
     "SecretError",
     "SecretStore",
+    "SentLog",
     "ServiceConfig",
     "ServiceError",
     "Settings",
@@ -76,6 +81,7 @@ __all__ = [
     "ToolRefusal",
     "ToolRequest",
     "ToolResult",
+    "Trail",
     "output_for",
     "require_consent",
 ]

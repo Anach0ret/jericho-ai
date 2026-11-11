@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
 from jericho.core.agent.entities import AgentReply
 from jericho.core.conf.settings import OutputSettings
+from jericho.core.journal.run_trail import Trail, no_trail
 from jericho.core.services.adapters.notify_send import NotifySendNotifier
 from jericho.core.services.mailbox import Mailbox
 from jericho.core.services.notifications import Notification, Notifier, StatusLook
 from jericho.core.services.runner import SubprocessRunner
+from jericho.core.services.sent import SentLog, SentNotice
 
 
 class Output(Protocol):
@@ -66,24 +70,50 @@ class NotifyOutput:
 
 
 class MailboxOutput:
-    """Сообщение в ящик транспорта: бот отдаст его адресату. Для ассистента на сервере — сводки, итоги, напоминания."""
+    """Сообщение в ящик транспорта: бот отдаст его адресату. Для ассистента на сервере — сводки, итоги, напоминания.
 
-    def __init__(self, mailbox: Mailbox, to: str) -> None:
+    У сообщения есть `notice` — его номер: квитанция транспорта («дошло», номера сообщений) ссылается на него. С `sent`
+    ушедшее записывается в журнал отправленного (`SentLog`) вместе со следом запуска (`trail`: данные событий, чужой
+    текст, личные пометки) — так модуль `notices` покажет его модели, когда человек ответит.
+    """
+
+    def __init__(self, mailbox: Mailbox, to: str, sent: SentLog | None = None, trail: Callable[[], Trail] = no_trail,
+                 now: Callable[[], datetime] = datetime.now) -> None:
         self._mailbox = mailbox
         self._to = to
+        self._sent = sent
+        self._trail = trail
+        self._now = now
 
     def deliver(self, task: str, reply: AgentReply) -> None:
-        self._mailbox.post({"to": self._to, "task": task, "status": reply.status.value, "title": reply.message, "text": reply.body})
+        notice = uuid.uuid4().hex
+        self._remember(notice, task, reply)      # до ящика: квитанция транспорта может прийти раньше, чем запись (ревью 11.11)
+        try:
+            self._mailbox.post({"to": self._to, "task": task, "status": reply.status.value, "title": reply.message, "text": reply.body, "notice": notice})
+        except Exception:
+            if self._sent is not None:
+                self._sent.confirm(notice, False)       # не ушло — модель не должна считать, что человек это видел
+            raise
+
+    def _remember(self, notice: str, task: str, reply: AgentReply) -> None:
+        if self._sent is None:
+            return
+        trail = self._trail()
+        # Были личные ручки — вместо заголовка и текста их пометки: пересказ переписки бывает и в заголовке (ревью 11.11).
+        kept = replace(reply, message="; ".join(trail.memos), body="", private=False) if trail.memos else reply
+        self._sent.record(SentNotice.of(notice, self._to, self._now().astimezone(), task, kept, trail.facts, trail.foreign))
 
 
-def output_for(settings: OutputSettings, project: str) -> Output:
-    """Вывод, названный в настройках. `project` — имя проекта: заголовок уведомлений по умолчанию."""
+def output_for(settings: OutputSettings, project: str, sent: SentLog | None = None, trail: Callable[[], Trail] = no_trail) -> Output:
+    """Вывод, названный в настройках. `project` — имя проекта: заголовок уведомлений по умолчанию.
+
+    `sent` и `trail` — только для ящика: записывать ли отправленное и откуда взять след запуска."""
     match settings.kind:
         case "file":
             return FileOutput(settings.file)
         case "notify":
             return NotifyOutput(NotifySendNotifier(SubprocessRunner(), icon=settings.icon), settings.title or project, settings.persistent)
         case "mailbox":
-            return MailboxOutput(Mailbox(settings.mailbox), settings.to)
+            return MailboxOutput(Mailbox(settings.mailbox), settings.to, sent, trail)
         case _:
             return StdoutOutput()

@@ -2,6 +2,7 @@ import argparse
 import json
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -13,6 +14,7 @@ from pydantic import ValidationError
 from jericho.core.agent.consent import AnswerWithoutModel, PhraseConsent
 from jericho.core.agent.entities import AgentReply, ReplyStatus
 from jericho.core.agent.handle_phrase import HandlePhrase
+from jericho.core.agent.task import Outcome, Task, TaskHandler
 from jericho.core.checks.base import Project
 from jericho.core.conf.settings import AgentSettings, Settings
 from jericho.core.modules.config import ModuleServices
@@ -20,13 +22,14 @@ from jericho.core.services.confirmation import ConfirmationGate
 from jericho.core.services.mailbox import Mailbox, MailboxError
 from jericho.core.services.own_paths import OwnPaths
 from jericho.core.services.process_tree import ProcessTree
+from jericho.core.services.sent import SentLog, SentNotice
 from jericho.core.skills.registry import InstalledSkills
 from jericho.core.testing import Confirmations, FakeBackend, builder
 from jericho.core.tools.result import ToolResult
 from jericho.modules.inbox.adapters.process import ProcessAnswerer
 from jericho.modules.inbox.checks import SubscriptionIsNotShared
 from jericho.modules.inbox.command import AnswerCommand, InboxCommand
-from jericho.modules.inbox.entities import Request
+from jericho.modules.inbox.entities import Receipt, Request
 from jericho.modules.inbox.module import InboxModule
 from jericho.modules.inbox.reception import Reception
 from jericho.modules.inbox.settings import InboxSettings
@@ -110,13 +113,41 @@ class TestRequest:
     def test_button_says_which_question_it_answers(self) -> None:
         assert Request.parse(request("да", answers="q-1")).answers == "q-1"
 
-    @pytest.mark.parametrize("broken", [{"user": None}, {"user": True}, {"text": 5}, {"id": ""}, {"answers": 7}])
+    def test_reply_says_which_transport_message_it_answers(self) -> None:
+        assert Request.parse(request("какая ошибка?", reply_to=501)).reply_to == "501"
+
+    @pytest.mark.parametrize("broken", [{"user": None}, {"user": True}, {"text": 5}, {"id": ""}, {"answers": 7}, {"reply_to": [1]}])
     def test_wrong_fields_are_refused(self, broken: dict[str, object]) -> None:
         with pytest.raises(ValueError, match="request needs"):
             Request.parse({**request(), **broken})
 
 
+class TestReceipt:
+    def test_receipt_is_not_a_request(self) -> None:
+        assert Receipt.parse(request()) is None
+        assert Receipt.parse({"receipt": "n1", "delivered": True, "messages": [501, "502"]}) == Receipt("n1", True, ("501", "502"))
+
+    @pytest.mark.parametrize("broken", [{"delivered": "yes"}, {"receipt": ""}, {"messages": "501"}, {"messages": [None]}])
+    def test_wrong_receipt_is_refused(self, broken: dict[str, object]) -> None:
+        with pytest.raises(ValueError, match="receipt"):
+            Receipt.parse({"receipt": "n1", "delivered": True, **broken})
+
+
 class TestReception:
+    def test_receipt_marks_the_notice_and_never_reaches_the_model(self, boxes: tuple[Mailbox, Mailbox], tmp_path: Path) -> None:
+        """Задача 102: поставить в ящик — ещё не доставить; дошло ли, говорит транспорт."""
+        inbox, outbox = boxes
+        log = SentLog.at(tmp_path / "state")
+        log.record(SentNotice("n1", "owner", datetime.now(UTC), "сводка", "done", "Всё в порядке"))
+        answerer = Answerer(outbox)
+        inbox.post({"receipt": "n1", "delivered": True, "messages": [501]})
+
+        assert Reception(inbox, outbox, answerer, {OWNER: "владелец"}, 4000, log).tick() == 1
+
+        found = log.by_message("owner", "501")
+        assert answerer.asked == [] and sent(outbox) == [] and found is not None and found.delivered is True
+        assert inbox.waiting() == [] and inbox.taken() == []
+
     def test_known_user_gets_an_answer(self, boxes: tuple[Mailbox, Mailbox]) -> None:
         inbox, outbox = boxes
         answerer = Answerer(outbox)
@@ -188,6 +219,24 @@ class TestCommands:
         assert backend.asked[0][1] == "что с сервером?"
         assert [(message["chat"], message["title"]) for message in sent(outbox)] == [("c1", "Нагрузка 0,3")]
         assert "confirm" not in sent(outbox)[0]
+
+    def test_reply_reaches_the_task_layers(self, boxes: tuple[Mailbox, Mailbox], tmp_path: Path) -> None:
+        """Номер сообщения, на которое ответил человек, доходит до слоёв поручения — их разбирает `notices`."""
+        _, outbox = boxes
+        seen: list[str] = []
+
+        class Layer:
+            def handle(self, task: Task, proceed: TaskHandler) -> Outcome:
+                seen.append(task.reply_to)
+                return proceed(task)
+
+        file = tmp_path / "request.json"
+        file.write_text(json.dumps(request("какая ошибка?", reply_to=501)), encoding="utf-8")
+        handle = HandlePhrase(builder(), FakeBackend({"status": "done", "message": "ok"}), layers=[Layer()])
+
+        AnswerCommand(handle, outbox, ConfirmationGate(Confirmations(), "run-1")).run(argparse.Namespace(request=file))
+
+        assert seen == ["501"]
 
     def test_answer_that_waits_for_yes_says_so_for_the_buttons(self, boxes: tuple[Mailbox, Mailbox], tmp_path: Path) -> None:
         """Транспорт с кнопками покажет «Да» и «Нет», только когда вопрос правда ждёт ответа."""

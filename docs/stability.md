@@ -15,7 +15,7 @@
 | Навык и служба | `SkillConfig`, `SkillSettings`, `ServiceConfig`, `ServiceError`, `SharedServices`, `CoreServices`, `PromptContext`, `Command` |
 | Ручка | `Tool`, `ToolRequest`, `ToolResult`, `ToolRefusal`, `ToolDescription`, `ToolImage`, `ToolCall`, `CallHandler`, `Risk`, `Approval`, `NEEDS_CONFIRM`, `require_consent`, `ConfirmationGate` |
 | Белый список команд | `Allowlist`, `AllowlistTool`, `CommandRule`, `CommandConsole`, `RunnerConsole` |
-| Службы ядра | `CommandRunner`, `CommandError`, `ForeignText`, `Clock`, `Paths`, `SecretStore`, `MemorySecretStore`, `SecretError`, `PortError` |
+| Службы ядра | `CommandRunner`, `CommandError`, `ForeignText`, `Clock`, `Paths`, `SecretStore`, `MemorySecretStore`, `SecretError`, `PortError`, `RunFacts` (данные события для уведомления, с 0.65.0), `SentLog` (журнал отправленного, с 0.65.0), `Trail` (след поручения для уведомления, с 0.65.0) |
 | Ответ и вывод | `AgentReply`, `ReplyStatus`, `Output`, `output_for` |
 | Настройки | `Settings`, `SettingsSection`, `AgentSettings`, `OutputSettings`, `CommandLine`, `ExpandedPath` |
 

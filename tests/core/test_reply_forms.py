@@ -85,6 +85,7 @@ class TestOutputs:
 
         output_for(OutputSettings(kind="mailbox", mailbox=box.root), "server").deliver("сводка", AgentReply(ReplyStatus.DONE, "Всё в порядке", "диск 45 %"))
 
-        assert [Mailbox.read(path) for path in box.waiting()] == [
-            {"to": "owner", "task": "сводка", "status": "done", "title": "Всё в порядке", "text": "диск 45 %"}
-        ]
+        [message] = [Mailbox.read(path) for path in box.waiting()]
+        notice = message.pop("notice")
+        assert message == {"to": "owner", "task": "сводка", "status": "done", "title": "Всё в порядке", "text": "диск 45 %"}
+        assert isinstance(notice, str) and len(notice) == 32      # номер для квитанции транспорта
