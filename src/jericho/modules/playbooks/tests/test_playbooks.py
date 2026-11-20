@@ -148,6 +148,80 @@ class TestSuggest:
             playbooks.accept(suggested.suggestions[-1].id)
 
 
+class TestReplaceLine:
+    """Владелец 11.11.2026: неверная строка памятки перекрывалась новой частной припиской — теперь её заменяют."""
+
+    WRONG = "Ссылку на тест брать label=«Точная инженерия AI: тест для закрепления»."
+    RIGHT = 'Ссылка на тест — label="тест для закреп", near="AIM N".'
+
+    def memo(self) -> tuple[PlaybookShelf, str]:
+        playbooks = shelf()
+        return playbooks, playbooks.write(QUIZ["title"], QUIZ["site"], f"1. Курс → модуль.\n{self.WRONG}\n3. Пройти тест.").id
+
+    def suggest(self, playbooks: PlaybookShelf, playbook_id: str, **request: str) -> ToolResult:
+        return execute(SuggestPlaybook(playbooks), {"playbook": playbook_id, "reason": "в модуле 9 надпись другая", **request})
+
+    def test_accepted_replacement_takes_the_place_of_the_line(self) -> None:
+        playbooks, playbook_id = self.memo()
+
+        result = self.suggest(playbooks, playbook_id, replaces=self.WRONG, text=self.RIGHT)
+        command(playbooks, accept=str(result.data["suggested"]))
+
+        playbook = playbooks.find(playbook_id)
+        assert playbook is not None and playbook.text == f"1. Курс → модуль.\n{self.RIGHT}\n3. Пройти тест."
+
+    def test_replacement_without_text_removes_the_line(self) -> None:
+        playbooks, playbook_id = self.memo()
+
+        result = self.suggest(playbooks, playbook_id, replaces=f"  {self.WRONG} ")
+        command(playbooks, accept=str(result.data["suggested"]))
+
+        playbook = playbooks.find(playbook_id)
+        assert playbook is not None and playbook.text == "1. Курс → модуль.\n3. Пройти тест."
+
+    def test_line_not_in_the_playbook_is_refused_with_its_lines(self) -> None:
+        playbooks, playbook_id = self.memo()
+
+        result = self.suggest(playbooks, playbook_id, replaces="Ссылку брать по названию модуля", text=self.RIGHT)
+
+        assert result.error == "line_not_found" and self.WRONG in cast(list[str], result.data["lines"])
+        playbook = playbooks.find(playbook_id)
+        assert playbook is not None and playbook.suggestions == ()
+
+    def test_accept_after_the_line_is_gone_changes_nothing(self) -> None:
+        playbooks, playbook_id = self.memo()
+        result = self.suggest(playbooks, playbook_id, replaces=self.WRONG, text=self.RIGHT)
+        playbooks.write(QUIZ["title"], QUIZ["site"], "1. Курс → модуль.\n3. Пройти тест.", playbook_id)
+
+        with pytest.raises(SystemExit, match="отклони предложение"):
+            command(playbooks, accept=str(result.data["suggested"]))
+
+        playbook = playbooks.find(playbook_id)
+        assert playbook is not None and playbook.text == "1. Курс → модуль.\n3. Пройти тест." and len(playbook.suggestions) == 1
+
+    @pytest.mark.parametrize("request_", [{"text": "коротко"}, {"replaces": "строка"}])
+    def test_empty_or_homeless_change_is_invalid(self, request_: dict[str, str]) -> None:
+        playbooks = shelf()
+
+        result = execute(SuggestPlaybook(playbooks), {"title": "Новое дело", "reason": "причина", **request_})
+
+        assert result.error == "invalid_parameters"
+
+    def test_files_without_replacements_are_read_as_appends(self, tmp_path: Path) -> None:
+        file = tmp_path / "playbooks.json"
+        file.write_text(
+            '[{"id": "p1", "title": "Тест", "site": "", "text": "1. шаг", "created": "2026-10-29T12:00:00", "used": null,'
+            ' "suggestions": [{"id": "s1", "text": "2. ещё шаг", "reason": "нет шага", "created": "2026-10-29T12:00:00"}]}]',
+            encoding="utf-8",
+        )
+        playbooks = shelf(JsonPlaybookStore(file))
+
+        playbooks.accept("s1")
+
+        playbook = playbooks.find("p1")
+        assert playbook is not None and playbook.text == "1. шаг\n2. ещё шаг"
+
+
 class TestRemoveAndKeep:
     def test_model_removes_on_request(self) -> None:
         playbooks, playbook_id = written()

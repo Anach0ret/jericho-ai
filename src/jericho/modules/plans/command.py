@@ -6,6 +6,7 @@ import argparse
 import logging
 from typing import ClassVar
 
+from jericho.core.jobs.arguments import add_job_argument, continuation_id, job_id
 from jericho.core.services.relaunch import Relaunch, relaunched
 from jericho.modules.plans.board import PlanBoard
 from jericho.modules.plans.run import PlanRun
@@ -15,27 +16,37 @@ logger = logging.getLogger(__name__)
 
 class PlansCommand:
     name = "plans"
-    help = "планы: без аргументов — список с шагами; --close ID — убрать план (без «да»); --run ID — пройти до конца без вопросов"
+    help = (
+        "планы: без аргументов — список с шагами; --close ID — убрать план (без «да»); --run ID — пройти до конца "
+        "без вопросов (без человека); --run ID --attended — пройти при человеке: действия спрашивают «да», как в фразе"
+    )
 
     MARKS: ClassVar[dict[str, str]] = {"pending": " ", "awaiting": "?", "done": "x", "skipped": "-", "failed": "!"}
 
     def __init__(self, board: PlanBoard, runner: PlanRun | None = None, relaunch: Relaunch | None = None) -> None:
         self._board = board
         self._runner = runner       # нет — прохождение без вопросов этому запуску недоступно
-        self._relaunch = relaunch   # прохождение — только без человека: запуск заново с отметкой, до сборки
+        self._relaunch = relaunch   # без `--attended` — только без человека: запуск заново с отметкой, до сборки
 
     def configure(self, parser: argparse.ArgumentParser) -> None:
         actions = parser.add_mutually_exclusive_group()
         actions.add_argument("--close", metavar="ID", help="id плана — из списка")
         actions.add_argument("--run", metavar="ID", help="id плана — пройти оставшиеся шаги без вопросов")
+        parser.add_argument(
+            "--attended", action="store_true",
+            help="с --run: человек рядом — не перезапускать без человека (так запускает ручка plan_run из его фразы)",
+        )
+        add_job_argument(parser)
 
     def run(self, args: argparse.Namespace) -> None:
         if args.run:
             if self._runner is None or self._relaunch is None:
                 raise SystemExit("прохождение плана здесь недоступно")
-            if relaunched(self._relaunch, self.name, "--run", args.run):     # сводка ревью 02.11.2026, №8
+            job, continuation = job_id(args), continuation_id(args)
+            after = ("--continuation", continuation) if continuation else ()
+            if not args.attended and relaunched(self._relaunch, self.name, "--run", args.run, "--job", job, *after):   # ревью 02.11.2026, №8
                 return
-            print(self._runner.run(args.run))
+            print(self._runner.run(args.run, job, continuation).summary)
             return
         if args.close:
             closed = self._board.close(args.close)

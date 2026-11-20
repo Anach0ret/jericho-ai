@@ -5,6 +5,8 @@ from __future__ import annotations
 from jericho.core.assembly.installation import Installation
 from jericho.core.assembly.state import State
 from jericho.core.conf.settings import Settings
+from jericho.core.jobs.background import BackgroundJobs
+from jericho.core.jobs.settings import JobsSettings
 from jericho.core.modules.config import ModuleServices
 from jericho.core.modules.loader import ModuleLoader
 from jericho.core.modules.registry import InstalledModules
@@ -30,4 +32,7 @@ def ready_modules(
         config_dir=installation.config_dir,
         user_config_home=installation.user_config_home,
     )
-    modules.ready(ModuleServices(settings, state.services, state.journal, state.session, skills, state.tools, relaunch, program, state.run_id))
+    jobs = BackgroundJobs(settings.section("jobs", JobsSettings), state.services, state.session, state.journal, program, state.carried)
+    if state.inherited:      # сервер ручек фразы продолжения: её контекст безопасности — из журнала запуска
+        jobs.carried.restore(state.journal, state.run_id)
+    modules.ready(ModuleServices(settings, state.services, state.journal, state.session, skills, state.tools, relaunch, program, state.run_id, jobs))

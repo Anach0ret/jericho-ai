@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 
-from jericho.modules.playbooks.shelf import PlaybookLimit, PlaybookShelf
+from jericho.modules.playbooks.shelf import PlaybookLimit, PlaybookLineMissing, PlaybookShelf
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +44,12 @@ class PlaybooksCommand:
     def _accept(self, suggestion_id: str) -> None:
         try:
             accepted = self._shelf.accept(suggestion_id)
-        except PlaybookLimit as error:
+        except (PlaybookLimit, PlaybookLineMissing) as error:
             raise SystemExit(str(error)) from error
         if accepted is None:
             raise SystemExit(f"предложения {suggestion_id} нет")
         logger.info("playbook_accepted", extra={"data": {"id": accepted.id, "suggestion": suggestion_id}})
-        print(f"Дописано в памятку «{accepted.title}»")
+        print(f"Памятка «{accepted.title}» поправлена")
 
     def _list(self) -> None:
         for playbook in self._shelf.all():
@@ -58,4 +58,5 @@ class PlaybooksCommand:
             for line in playbook.text.splitlines():
                 print(f"    {line}")
             for suggestion in playbook.suggestions:
-                print(f"  ? {suggestion.id}: {suggestion.text} — {suggestion.reason}")
+                change = f"«{suggestion.replaces}» → {suggestion.text or '(убрать)'}" if suggestion.replaces else suggestion.text
+                print(f"  ? {suggestion.id}: {change} — {suggestion.reason}")

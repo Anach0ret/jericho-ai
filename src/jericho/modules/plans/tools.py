@@ -11,9 +11,9 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
+from jericho.core.jobs.launch import JobLauncher
+from jericho.core.jobs.request import BackgroundRequest
 from jericho.core.services.confirmation import ConfirmationGate
-from jericho.core.services.program import Program
-from jericho.core.services.runner import CommandError, CommandRunner
 from jericho.core.tools.consent import require_consent
 from jericho.core.tools.description import ToolDescription
 from jericho.core.tools.request import ToolRequest
@@ -177,12 +177,17 @@ class ClosePlan(Tool[ClosePlanRequest]):
         return ToolResult.success(closed=plan.title)
 
 
-class RunPlanRequest(ToolRequest):
+class RunPlanRequest(BackgroundRequest):
     plan: str | None = Field(default=None, description="id плана; не указан — тот, что идёт сейчас.")
 
 
 class RunPlan(Tool[RunPlanRequest]):
-    """Запускает команду `<проект> plans --run`: она отдельным запуском проходит шаги один за другим, фраза за фразой."""
+    """Запускает команду `<проект> plans --run`: она отдельным запуском проходит шаги один за другим, фраза за фразой.
+
+    Фраза с человеком рядом — прогон тоже с человеком (`--attended`): клики и другие действия работают, как в обычной
+    фразе, а нужное «да» спрашивает ручка — прогон на таком шаге встаёт (владелец 11.11.2026, журнал: тесты модуля 9).
+    Без человека флаг не ставится, и прогон собирается «никого нет», как задача по расписанию.
+    """
 
     name = "plan_run"
     risk = Risk.CHANGE
@@ -191,26 +196,34 @@ class RunPlan(Tool[RunPlanRequest]):
         when="просят пройти план целиком самому: «сделай всё сам», «пройди до конца без меня».",
         does=(
             "запускает в фоне прохождение оставшихся шагов: каждый шаг — отдельной фразой «продолжай план», итог шага "
-            "приходит уведомлением. Останавливается, когда шаги кончились, шаг не вышел или нет продвижения."
+            "приходит уведомлением, без вопроса «продолжить?». Останавливается, когда шаги кончились, шаг не вышел, "
+            "нет продвижения или шагу нужно «да» — тогда вопрос приходит уведомлением."
         ),
-        returns='{"ok": true, "started": название, "left": сколько шагов осталось}.',
-        refusals="plan_not_found + plans; plan_finished — все шаги уже пройдены; not_started + detail.",
+        returns=(
+            '{"ok": true, "started": название, "left": сколько шагов осталось, "job": id работы — итог потом в разделе '
+            '«Фоновые работы», "then": id продолжения, если указан then — выполнится, только если пройден весь план}.'
+        ),
+        refusals=(
+            "plan_not_found + plans; plan_finished — все шаги уже пройдены; not_started + detail; then_after_private, then_after_local, "
+            "chain_too_deep, chain_too_long + detail — запусти без then."
+        ),
     )
 
     FINISHED = "plan_finished"
-    NOT_STARTED = "not_started"
 
-    def __init__(self, board: PlanBoard, runner: CommandRunner, program: Program) -> None:
+    ATTENDED = "--attended"
+
+    def __init__(self, board: PlanBoard, launcher: JobLauncher, gate: ConfirmationGate) -> None:
         self._board = board
-        self._runner = runner
-        self._program = program
+        self._launcher = launcher
+        self._gate = gate            # рядом ли человек у этой фразы — так же пойдёт и прогон
 
     def _run(self, request: RunPlanRequest) -> ToolResult:
         plan = found(self._board, request.plan)
         if plan.next is None:
             raise ToolRefusal(self.FINISHED, title=plan.title)
-        try:
-            self._runner.launch(self._program.detached("plans", "--run", plan.id))
-        except CommandError as error:
-            raise ToolRefusal(self.NOT_STARTED, detail=str(error)) from error
-        return ToolResult.success(started=plan.title, left=len(plan.steps) - plan.finished)
+        started = self._launcher.start("plans", "--run", plan.id, *self._presence(), then=request.then)
+        return ToolResult.success(started=plan.title, left=len(plan.steps) - plan.finished, **started.fields())
+
+    def _presence(self) -> tuple[str, ...]:
+        return (self.ATTENDED,) if self._gate.attended else ()

@@ -7,6 +7,9 @@ from typing import cast
 import pytest
 
 from jericho.core.agent.entities import AgentReply, ReplyStatus
+from jericho.core.jobs.entities import JobOutcome, JobStatus
+from jericho.core.jobs.journal import JobJournal
+from jericho.core.jobs.launch import JobLauncher
 from jericho.core.modules.config import ModuleServices
 from jericho.core.services.adapters.file_lock import FileLock
 from jericho.core.services.adapters.memory_list import MemoryList
@@ -15,7 +18,7 @@ from jericho.core.services.lock import Unlocked
 from jericho.core.services.locked_list import StateBusy
 from jericho.core.services.program import Program
 from jericho.core.testing import Confirmations, execute, say_yes
-from jericho.core.testing.fakes import fake_core
+from jericho.core.testing.fakes import fake_core, fake_jobs
 from jericho.modules.plans.adapters.json_file import JsonPlanStore
 from jericho.modules.plans.board import PlanBoard
 from jericho.modules.plans.command import PlansCommand
@@ -230,11 +233,11 @@ class Delivered:
         self.replies.append(reply)
 
 
-def run(plans: PlanBoard, phrases: Phrases) -> tuple[str, Delivered]:
+def run(plans: PlanBoard, phrases: Phrases) -> tuple[JobOutcome, Delivered]:
     delivered = Delivered()
     plan = plans.find()
     assert plan is not None
-    return PlanRun(plans, phrases, delivered, Unlocked()).run(plan.id), delivered  # pyright: ignore[reportArgumentType]
+    return PlanRun(plans, phrases, delivered, Unlocked(), JobJournal(delivered)).run(plan.id, "j1"), delivered  # pyright: ignore[reportArgumentType]
 
 
 class TestRun:
@@ -243,9 +246,9 @@ class TestRun:
 
         outcome, delivered = run(plans, phrases := Phrases(plans))
 
-        assert outcome == "План «Тесты модуля 1» пройден" and plans.all() == []
+        assert outcome == JobOutcome.succeeded("План «Тесты модуля 1» пройден") and plans.all() == []
         assert len(phrases.phrases) == 3 and "сделай сам, без вопросов" in phrases.phrases[0]
-        assert delivered.replies[-1].message == outcome      # итог — тоже уведомлением
+        assert delivered.replies[-1].message == outcome.summary      # итог — тоже уведомлением
 
     def test_question_after_a_done_step_is_delivered_as_done(self) -> None:
         """Журнал 02.11.2026: шаг сделан, а итог — «Продолжить?» с кнопками; ответить некому, прогон идёт сам."""
@@ -253,7 +256,7 @@ class TestRun:
 
         outcome, delivered = run(plans, AskingPhrases(plans))
 
-        assert outcome == "План «Тесты модуля 1» пройден"
+        assert outcome.summary == "План «Тесты модуля 1» пройден"
         assert [(reply.status, reply.options) for reply in delivered.replies[:3]] == [(ReplyStatus.DONE, ())] * 3
 
     def test_step_that_does_not_move_stops_the_run(self) -> None:
@@ -262,7 +265,7 @@ class TestRun:
 
         outcome, delivered = run(plans, phrases := Phrases(plans, AgentReply(ReplyStatus.CLARIFY, "Какой тест?")))
 
-        assert outcome == "План «Тесты модуля 1» остановился на шаге 1: шаг не сдвинулся — Какой тест?"
+        assert outcome == JobOutcome(JobStatus.WAITING_USER, "План «Тесты модуля 1» остановился на шаге 1: шаг не сдвинулся — Какой тест?")
         assert len(phrases.phrases) == 1 and delivered.replies[0].status is ReplyStatus.CLARIFY     # настоящий вопрос
 
     def test_awaiting_step_counts_as_movement(self) -> None:
@@ -270,7 +273,8 @@ class TestRun:
 
         outcome, _ = run(plans, Phrases(plans, StepState.AWAITING))
 
-        assert outcome.startswith("План «Тесты модуля 1» остановился на шаге 1")    # второй раз awaiting — уже круг
+        assert outcome.summary.startswith("План «Тесты модуля 1» остановился на шаге 1")    # второй раз awaiting — уже круг
+        assert outcome.status is JobStatus.WAITING_USER
 
     def test_step_that_did_not_work_out_stops_the_run(self) -> None:
         """Журнал 29.10.2026: шаг отмечен «не вышло», а прогон пошёл дальше — решать, что с ним делать, должен человек."""
@@ -278,26 +282,55 @@ class TestRun:
 
         outcome, _ = run(plans, phrases := Phrases(plans, StepState.FAILED))
 
-        assert outcome == "План «Тесты модуля 1» остановлен на шаге 1: шаг сделан" and len(phrases.phrases) == 1
+        assert outcome == JobOutcome.failed("План «Тесты модуля 1» остановлен на шаге 1: шаг сделан") and len(phrases.phrases) == 1
 
-    @pytest.mark.parametrize("reply", [AgentReply(ReplyStatus.FAILED, "сбой"), AgentReply(ReplyStatus.STOPPED, "стоп")])
-    def test_failure_or_stop_ends_the_run(self, reply: AgentReply) -> None:
+    @pytest.mark.parametrize(("reply", "status"), [
+        (AgentReply(ReplyStatus.FAILED, "сбой"), JobStatus.FAILED), (AgentReply(ReplyStatus.STOPPED, "стоп"), JobStatus.STOPPED),
+    ])
+    def test_failure_or_stop_ends_the_run(self, reply: AgentReply, status: JobStatus) -> None:
+        """Ревью плана 110, №7: прогон, остановленный на шаге, слал «готово» — теперь итог по сути дела."""
         plans = saved()
 
-        outcome, _ = run(plans, Phrases(plans, reply))
+        outcome, delivered = run(plans, Phrases(plans, reply))
 
-        assert outcome == f"План «Тесты модуля 1» остановлен на шаге 1: {reply.message}"
+        assert outcome == JobOutcome(status, f"План «Тесты модуля 1» остановлен на шаге 1: {reply.message}")
+        assert delivered.replies[-1].status is not ReplyStatus.DONE
 
     def test_tool_starts_the_run_as_a_separate_launch(self) -> None:
         """Отдельный запуск, а не продолжение фразы: иначе он унаследовал бы её журнал и подтверждения."""
         plans, launched = saved(), Launched()
         program = Program("home", ("/venv/python", "-m", "jericho"), {}, Path("/c"), Path("/c"))
 
-        result = execute(RunPlan(plans, launched, program), {})  # pyright: ignore[reportArgumentType]
+        result = execute(RunPlan(plans, JobLauncher(launched, program), nobody()), {})  # pyright: ignore[reportArgumentType]
 
         plan = plans.find()
         assert plan is not None and (result.ok, result.data["left"]) == (True, 3)
-        assert launched.commands == [["env", "-u", "JERICHO_RUN", "-u", "JERICHO_DEADLINE", "/venv/python", "-m", "jericho", "plans", "--run", plan.id]]
+        job = result.data["job"]
+        assert launched.commands == [["env", "-u", "JERICHO_RUN", "-u", "JERICHO_DEADLINE", "/venv/python", "-m", "jericho", "plans", "--run", plan.id, "--job", job]]
+
+    def test_run_from_a_phrase_with_a_person_goes_with_the_person(self) -> None:
+        """Владелец 11.11.2026: «пройди без меня» при нём — шаги как обычная фраза, клики не получают `nobody_to_ask`."""
+        plans, launched = saved(), Launched()
+        program = Program("home", ("x",), {}, Path("/c"), Path("/c"))
+
+        execute(RunPlan(plans, JobLauncher(launched, program), ConfirmationGate(Confirmations(), "run-1")), {})  # pyright: ignore[reportArgumentType]
+
+        assert launched.commands[0][-3] == "--attended"
+
+    @pytest.mark.parametrize(("step", "continued"), [
+        (None, True), (AgentReply(ReplyStatus.STOPPED, "стоп"), False), (AgentReply(ReplyStatus.CLARIFY, "Какой тест?"), False),
+    ])
+    def test_then_of_the_run_goes_only_after_the_whole_plan(self, tmp_path: Path, step: AgentReply | None, continued: bool) -> None:
+        """`plan_run(then)` → прогон → продолжение: идёт после пройденного плана, не после остановки или вопроса."""
+        plans, jobs, delivered, thens = saved(), fake_jobs(tmp_path), Delivered(), ThenPhrases()
+        started = execute(RunPlan(plans, jobs.launcher, ConfirmationGate(Confirmations(), "run-1")), {"then": "пришли итог Маше"})
+        plan = plans.find()
+        assert plan is not None and started.ok
+
+        steps = Phrases(plans) if step is None else Phrases(plans, step)
+        PlanRun(plans, steps, delivered, Unlocked(), jobs.journal(delivered, thens)).run(plan.id, str(started.data["job"]), str(started.data["then"]))  # pyright: ignore[reportArgumentType]
+
+        assert [phrase.split("\n")[0] for phrase in thens.phrases] == (["пришли итог Маше"] if continued else [])
 
     def test_finished_plan_is_not_started(self) -> None:
         plans = saved(["раз", "два"])
@@ -306,7 +339,25 @@ class TestRun:
         plan = plans.mark(plan, 1, StepState.DONE, "")
         plans.mark(plan, 2, StepState.FAILED, "кнопки нет")
 
-        assert execute(RunPlan(plans, Launched(), Program("home", ("x",), {}, Path("/c"), Path("/c"))), {}).error == "plan_finished"  # pyright: ignore[reportArgumentType]
+        assert execute(RunPlan(plans, JobLauncher(Launched(), Program("home", ("x",), {}, Path("/c"), Path("/c"))), nobody()), {}).error == "plan_finished"  # pyright: ignore[reportArgumentType]
+
+
+class ThenPhrases:
+    """Фразы продолжения — отдельно от шагов плана, чтобы видеть, пошло ли оно."""
+
+    busy = AgentReply(ReplyStatus.FAILED, "занят")
+
+    def __init__(self) -> None:
+        self.phrases: list[str] = []
+
+    def execute(self, phrase: str) -> AgentReply:
+        self.phrases.append(phrase)
+        return AgentReply(ReplyStatus.DONE, "Отправил")
+
+
+def nobody() -> ConfirmationGate:
+    """Фраза без человека рядом — задача по расписанию."""
+    return ConfirmationGate(Confirmations(), "run-1", attended=False)
 
 
 class Launched:
@@ -353,7 +404,7 @@ class TestLockThroughTheModule:
         core = fake_core(tmp_path, dry_run=False)
         module = PlansModule()
         own = SimpleNamespace(section=lambda name, section_class: PlansSettings(confirm_create=False))
-        module.ready(cast(ModuleServices, SimpleNamespace(settings=own, core=core, program=None)))
+        module.ready(cast(ModuleServices, SimpleNamespace(settings=own, core=core, program=None, background=lambda: SimpleNamespace(launcher=None))))
         create = next(tool for tool in module.tools() if tool.name == "plan_create")
         held = FileLock(core.paths.state_dir / PlansModule.LOCK)
         assert held.acquire()
@@ -379,9 +430,9 @@ class Run:
     def __init__(self) -> None:
         self.ran: list[str] = []
 
-    def run(self, plan_id: str) -> str:
+    def run(self, plan_id: str, job: str, continuation: str = "") -> JobOutcome:
         self.ran.append(plan_id)
-        return "готово"
+        return JobOutcome.succeeded("готово")
 
 
 class TestRunWithoutAPerson:
@@ -391,13 +442,41 @@ class TestRunWithoutAPerson:
     def test_run_by_a_person_relaunches_itself_unattended(self) -> None:
         relaunch, run = Relaunch(attended=True), Run()
 
-        PlansCommand(board(), cast(PlanRun, run), relaunch).run(argparse.Namespace(close=None, run="p1"))
+        PlansCommand(board(), cast(PlanRun, run), relaunch).run(argparse.Namespace(close=None, run="p1", attended=False, job="j1"))
 
-        assert relaunch.launched == [("plans", "--run", "p1")] and run.ran == []
+        assert relaunch.launched == [("plans", "--run", "p1", "--job", "j1")] and run.ran == []
+
+    def test_the_continuation_goes_with_the_relaunched_run(self) -> None:
+        """Без этого перезапуск без человека терял бы `then` прогона: его взял бы никто."""
+        relaunch, run = Relaunch(attended=True), Run()
+
+        PlansCommand(board(), cast(PlanRun, run), relaunch).run(
+            argparse.Namespace(close=None, run="p1", attended=False, job="j1", continuation="c1"),
+        )
+
+        assert relaunch.launched == [("plans", "--run", "p1", "--job", "j1", "--continuation", "c1")]
 
     def test_the_relaunched_run_walks_the_plan(self) -> None:
         relaunch, run = Relaunch(attended=False), Run()
 
-        PlansCommand(board(), cast(PlanRun, run), relaunch).run(argparse.Namespace(close=None, run="p1"))
+        PlansCommand(board(), cast(PlanRun, run), relaunch).run(argparse.Namespace(close=None, run="p1", attended=False, job="j1"))
 
         assert relaunch.launched == [] and run.ran == ["p1"]
+
+
+class TestRunWithAPerson:
+    """Владелец 11.11.2026: прогон, запущенный его фразой, идёт при нём; по расписанию — без человека, как было."""
+
+    def test_attended_run_is_not_relaunched_without_the_person(self) -> None:
+        relaunch, run = Relaunch(attended=True), Run()
+
+        PlansCommand(board(), cast(PlanRun, run), relaunch).run(argparse.Namespace(close=None, run="p1", attended=True, job="j1"))
+
+        assert relaunch.launched == [] and run.ran == ["p1"]
+
+    def test_flag_is_parsed_with_run(self) -> None:
+        parser = argparse.ArgumentParser()
+        PlansCommand(board()).configure(parser)
+
+        assert parser.parse_args(["--run", "p1", "--attended"]).attended
+        assert not parser.parse_args(["--run", "p1"]).attended

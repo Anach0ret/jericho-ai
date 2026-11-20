@@ -7,6 +7,7 @@ from pydantic import Field
 
 from jericho.core import PortError, Risk, Tool, ToolCall, ToolDescription, ToolRefusal, ToolRequest, ToolResult
 from jericho.core.conf.settings import Settings
+from jericho.core.jobs.request import BackgroundRequest
 from jericho.core.services.confirmation import ConfirmationGate
 from jericho.core.skills.middleware import RequireLoadedSkill
 from jericho.core.testing.fakes import Confirmations
@@ -308,3 +309,54 @@ class TestPrivateFieldsEverywhere:
         outer = caplog.records[-1].data  # pyright: ignore[reportAttributeAccessIssue] — поле из extra
         assert result.ok and result.data["said"] == "привет от Анны"         # модель получает ответ целиком
         assert outer["tool"] == "confirm" and outer["private"] is True and "Анн" not in str(outer)
+
+
+class LaunchRequest(BackgroundRequest):
+    url: str = Field(description="Адрес.")
+
+
+class Launch(Tool[LaunchRequest]):
+    """Как фоновая ручка: поле `then` — поручение пользователя, скрыто в журнале, но не личное."""
+
+    name = "launch"
+    description = ToolDescription(when="Просят скачать.", does="Запускает.", returns="job.", refusals="нет.")
+    request_type = LaunchRequest
+    risk = Risk.CHANGE
+
+    def _run(self, request: LaunchRequest) -> ToolResult:
+        return ToolResult.success(job="j1", then="c1" if request.then else "")
+
+
+class TestMaskedFields:
+    """`then` фоновой ручки скрыт в журнале и в вопросе «да», но фраза после него не «читала личное» (план 110, этап 3):
+    иначе вынос наружу спрашивал бы «да», а запасная модель не могла бы скачать ролик."""
+
+    def test_then_is_masked_in_the_journal_without_the_private_mark(self, caplog: pytest.LogCaptureFixture) -> None:
+        session = CallSession()
+        with caplog.at_level(logging.INFO, logger="jericho"):
+            result = ToolDispatcher([Journal, Refusals], session=session).call(Launch(), {"url": "u", "then": "пришли другу"})
+
+        data = caplog.records[-1].data  # pyright: ignore[reportAttributeAccessIssue] — поле из extra
+        assert result.ok and data["params"] == {"url": "u", "then": "скрыто: 12 знаков"} and data["result"]["then"] == "c1"
+        assert "private" not in data and not session.private_read
+
+    def test_crash_of_a_tool_with_then_keeps_it_out_of_the_journal(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Текст исключения мог повторить `then` — в аварийную запись идут только вид ошибки и строки кода (ревью 111, этап 3, №2)."""
+
+        class Crashing(Launch):
+            name = "crashing"
+
+            def _run(self, request: LaunchRequest) -> ToolResult:
+                raise ValueError(f"не скачал, а надо было: {request.then}")
+
+        with caplog.at_level(logging.INFO, logger="jericho"):
+            result = ToolDispatcher([Journal, Refusals]).call(Crashing(), {"url": "u", "then": "пришли другу"})
+
+        record = caplog.records[-1]
+        assert result.error == "tool_failed" and record.exc_info is None
+        assert "другу" not in f"{record.getMessage()} {record.data}"  # pyright: ignore[reportAttributeAccessIssue] — поле из extra
+
+    def test_question_of_the_framework_hides_then(self) -> None:
+        summary = Launch().consent_summary({"url": "u", "then": "пришли другу"})
+
+        assert "другу" not in summary and '"url": "u"' in summary

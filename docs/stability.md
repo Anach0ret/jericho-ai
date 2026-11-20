@@ -26,7 +26,7 @@
 
 Подмены и помощники для тестов проекта: `execute`, `builder`, `FakeBackend`, `Confirmations`, `Source`, `say_yes`,
 `NOON`; проверка навыка как в `check` — `Project`, `InstalledSkills`, `DEFAULT_CHECKS`; службы ядра для сборки навыка
-в тесте — `fake_core`.
+в тесте — `fake_core`; фоновые работы для теста модуля (`ModuleServices.jobs`, ручки с полем then) — `fake_jobs` (с 0.68.0).
 
 ### Сборка проекта
 
@@ -46,9 +46,16 @@
 ### Договор ручки
 
 Атрибуты `Tool` (`name`, `description`, `request_type`, `risk`, `approval`, `service`, `private`, `outbound`,
-`local`, `proves`, `relays` — с 0.62.0), метод `private_in(result)` (с 0.59.0) и что за ними обещано — `docs/tools.md`. Отказы каркаса и их коды: `invalid_parameters`,
+`local`, `proves`, `relays` — с 0.62.0), метод `private_in(result)` (с 0.59.0), скрытые поля запроса
+`ToolRequest.masked` (с 0.68.0) и что за ними обещано — `docs/tools.md`. Отказы каркаса и их коды: `invalid_parameters`,
 `needs_confirm`, `nobody_to_ask`, `not_allowed_for_user`, `private_needs_trusted_model`, `skill_not_loaded`,
 `tool_timeout`, `tool_failed`, `phrase_deadline_passed` (с 0.64.0).
+
+Договор фоновой ручки (`docs/tools.md` «Фоновая ручка», с 0.68.0): из `jericho.core.jobs` — запрос
+`BackgroundRequest` с полем `then`, запуск `ModuleServices.jobs.launcher.start(...)` → `JobStart`, работа
+`ModuleServices.jobs.journal(...)` → `JobJournal.run(ticket, work, lead=)`, `JobTicket`, `JobOutcome`, `JobStatus` и его
+значения, аргументы команды `add_job_argument`, `job_id`, `continuation_id`; отказы `not_started`, `then_unavailable`,
+`then_after_private`, `then_after_local`, `chain_too_deep`, `chain_too_long`. Остальное в `jericho.core.jobs` — внутреннее.
 
 ### Командная строка, проверки, обмен
 

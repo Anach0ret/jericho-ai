@@ -1,6 +1,7 @@
 import sys
 import time
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from jericho.core.assembly.modules import load_modules, ready_modules
 from jericho.core.assembly.skills import build_skills
 from jericho.core.assembly.state import build_state
 from jericho.core.assembly.tools import build_toolset
+from jericho.core.jobs.continuation import Carried, Chain
 from jericho.core.services.paths import UserDirs
 from jericho.core.services.phrase_deadline import PhraseDeadline
 
@@ -133,6 +135,23 @@ class TestProject:
     def test_project_whose_package_cannot_be_imported_is_named(self, tmp_path: Path) -> None:
         with pytest.raises(InstallationError, match="nowhere: the package of the assistant is not importable"):
             _ = self.discover(tmp_path, "nowhere.settings").project_dir
+
+    def test_tool_server_of_a_continuation_gets_its_context_from_the_journal(self, installation: Installation) -> None:
+        """Сквозь сборку: фраза продолжения переносит контекст событием журнала, сервер ручек того же запуска при
+        сборке восстанавливает его — общий у ручек модулей и у `confirm` (ревью 111, рекомендация к №3)."""
+        settings = installation.settings()
+        phrase = build_state(settings, installation)
+        chain = Chain("root", 3, datetime(2026, 11, 20, 12, 0).astimezone())
+        phrase.carried.carry(Carried(local_read=True, foreign=("jobs",), chain=chain))
+        child = {**installation.environment, **installation.tool_server_environment(phrase.run_id)}
+        server_installation = replace(installation, environment=child)
+        server = build_state(settings, server_installation)
+        modules = load_modules(settings)
+        skills = build_skills(settings, server, modules)
+
+        ready_modules(modules, settings, server, skills.installed, server_installation)
+
+        assert server.carried.chain == chain and server.session.local_read and server.services.foreign.sources == {"jobs"}
 
     def test_the_main_backend_is_known_to_the_policy_of_private_data(self, tmp_path: Path) -> None:
         """Без `agent.private_backends` личные данные — только основному: и в процессе фразы, и в сервере ручек."""

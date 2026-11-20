@@ -7,6 +7,6 @@
 from jericho.core.checks.base import Project
 from jericho.core.checks.structure import DEFAULT_CHECKS
 from jericho.core.skills.registry import InstalledSkills
-from jericho.core.testing.fakes import NOON, Confirmations, FakeBackend, Source, builder, execute, fake_core, say_yes
+from jericho.core.testing.fakes import NOON, Confirmations, FakeBackend, Source, builder, execute, fake_core, fake_jobs, say_yes
 
-__all__ = ["DEFAULT_CHECKS", "NOON", "Confirmations", "FakeBackend", "InstalledSkills", "Project", "Source", "builder", "execute", "fake_core", "say_yes"]
+__all__ = ["DEFAULT_CHECKS", "NOON", "Confirmations", "FakeBackend", "InstalledSkills", "Project", "Source", "builder", "execute", "fake_core", "fake_jobs", "say_yes"]
