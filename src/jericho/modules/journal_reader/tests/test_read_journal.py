@@ -50,6 +50,27 @@ def read(**arguments: object) -> list[dict[str, object]]:
     return execute(ReadJournal(Journal(), SERVICE, now=lambda: NOW), arguments).data["entries"]  # pyright: ignore[reportReturnType]
 
 
+class JobsJournal:
+    def tail(self, limit: int) -> list[JournalEntry]:
+        return [
+            *ENTRIES,
+            entry(7, "job_started", job="j1", kind="videos", title="видео", params={"url": "https://youtu.be/x"}, pid=5),
+            entry(9, "job_finished", job="j1", kind="videos", title="видео", params={}, status="succeeded", summary="Скачано", artifact="/f.mp4"),
+        ][-limit:]
+
+
+class TestJobs:
+    def test_jobs_kind_gives_starts_and_outcomes_and_marks_them_foreign(self) -> None:
+        """План 110: на «готово?» модель берёт файл из итога работы; название ролика в нём — чужой текст."""
+        foreign = ForeignText()
+
+        result = execute(ReadJournal(JobsJournal(), SERVICE, now=lambda: NOW, foreign=foreign), {"kind": "jobs"})
+        entries: list[dict[str, object]] = result.data["entries"]  # pyright: ignore[reportAssignmentType]
+
+        assert [(item["event"], item.get("artifact")) for item in entries] == [("job_started", None), ("job_finished", "/f.mp4")]
+        assert "journal" in foreign.sources
+
+
 class TestReadJournal:
     def test_returns_the_latest_entries_from_old_to_new(self) -> None:
         entries = read(limit=2)

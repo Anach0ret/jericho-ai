@@ -9,12 +9,17 @@ from typing import Any
 from jericho.core.agent.context import PendingQuestion
 from jericho.core.agent.entities import BackendAnswer
 from jericho.core.agent.protocols import AgentBackendError
+from jericho.core.jobs.background import BackgroundJobs
+from jericho.core.jobs.settings import JobsSettings
+from jericho.core.journal.entities import JournalEntry
+from jericho.core.journal.protocols import JournalReader
 from jericho.core.prompting.builder import PromptBuilder
 from jericho.core.prompting.entities import Skill
 from jericho.core.prompting.protocols import PromptContext
 from jericho.core.services.confirmation import ConfirmationGate, PendingConfirmation
 from jericho.core.services.core_services import CoreServices
 from jericho.core.services.paths import Paths
+from jericho.core.services.program import Program
 from jericho.core.services.runner import DryRunRunner, SubprocessRunner
 from jericho.core.tools.confirm import Confirm
 from jericho.core.tools.dispatcher import ToolDispatcher
@@ -115,3 +120,15 @@ def fake_core(state: Path, dry_run: bool = True) -> CoreServices:
         DryRunRunner(SubprocessRunner()) if dry_run else SubprocessRunner(), ConfirmationGate(Confirmations(), "test"),
         Paths(state / "state", state / "run"), dry_run=dry_run,
     )
+
+
+class _NoJournal:
+    def tail(self, limit: int) -> list[JournalEntry]:
+        return []
+
+
+def fake_jobs(state: Path, journal: JournalReader | None = None, session: CallSession | None = None) -> BackgroundJobs:
+    """Фоновые работы для теста модуля: как их собирает каркас, «вхолостую» — продолжения (`then`) в памяти, запуск
+    работы — только в журнал. `journal` — что уже было (повтор скачивания узнаётся по нему); `session` — сеанс фразы."""
+    program = Program("test", ("python", "-m", "jericho"), {}, state / "config", state / "config")
+    return BackgroundJobs(JobsSettings(), fake_core(state), session or CallSession(), journal or _NoJournal(), program)

@@ -56,7 +56,7 @@ class PlansModule(ModuleConfig):
             ShowPlan(board),
             MarkStep(board),
             ClosePlan(board),
-            RunPlan(board, services.core.runner, services.program),
+            RunPlan(board, services.background().launcher, services.core.confirmation),
         )
 
     def contexts(self) -> Sequence[PromptContext]:
@@ -66,7 +66,8 @@ class PlansModule(ModuleConfig):
         services = self._services
         output = output_for(services.settings.output, services.program.name)
         lock = FileLock(services.core.paths.state_dir / self.RUN_LOCK)
-        return (PlansCommand(self._board, PlanRun(self._board, handle_phrase, output, lock), services.relaunch),)
+        run = PlanRun(self._board, handle_phrase, output, lock, services.background().journal(output, handle_phrase))
+        return (PlansCommand(self._board, run, services.relaunch),)
 
     def status(self) -> Mapping[str, object]:
         """Для окна на панели: планы с шагами — что сделано, что дальше; убрать план — командой `plans --close`."""

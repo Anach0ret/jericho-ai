@@ -111,11 +111,12 @@ class ToolDispatcher:
     def _journal_failure(tool: Tool[Any], arguments: Mapping[str, object], result: ToolResult) -> None:
         """Запись о вызове, который оборвался мимо слоёв; вызывается из `except` — трассировка попадает в журнал.
 
-        Личные поля скрыты, как у слоя журнала. У ручки с личными полями — и текст исключения: в нём мог оказаться
-        сам текст (`ValueError(f"… {message}")`), поэтому в журнал идут только вид ошибки и строки кода (ревью П1 №1).
+        Личные и скрытые поля скрыты, как у слоя журнала. У ручки с такими полями — и текст исключения: в нём мог
+        оказаться сам текст (`ValueError(f"… {message}")`), поэтому в журнал идут только вид ошибки и строки кода
+        (ревью П1 №1; скрытые — ревью 111, этап 3, №2).
         """
-        data = {"tool": tool.name, "params": PrivateFields(tool.private).mask(arguments), "result": result.to_dict()}
-        if not tool.private:
+        data = {"tool": tool.name, "params": PrivateFields(tool.masked).mask(arguments), "result": result.to_dict()}
+        if not tool.masked:
             logger.exception("tool", extra={"data": data})
             return
         error = sys.exc_info()[1]

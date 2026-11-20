@@ -29,13 +29,13 @@ class Journal:
     def __call__(self, call: ToolCall) -> ToolResult:
         started = time.perf_counter()
         result = self._handle(call)
-        params, answer = PrivateFields(call.tool.private), PrivateFields(call.tool.private_in(result))
+        params, answer = PrivateFields(call.tool.masked), PrivateFields(call.tool.private_in(result))
         logger.info("tool", extra={"data": {
             "tool": call.tool.name,
             "params": params.mask(call.arguments),
             "result": {name: self._short(value) for name, value in answer.mask(result.to_dict()).items()},
             "ms": round((time.perf_counter() - started) * 1000, 1),
-            **({"private": True} if params or answer else {}),
+            **({"private": True} if call.tool.private or answer else {}),
         }})
         return result
 

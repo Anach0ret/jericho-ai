@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from jericho.core.jobs.entities import JobRecord
 from jericho.core.journal.entities import JournalEntry, PhraseRecord
 from jericho.core.journal.protocols import JournalReader
 from jericho.core.services.clock import local_now
@@ -34,15 +35,17 @@ _KINDS: dict[str, Callable[[JournalEntry], bool]] = {
     "all": lambda entry: True,
     "phrases": lambda entry: entry.event == PhraseRecord.EVENT,
     "tools": lambda entry: entry.event == "tool",
+    "jobs": lambda entry: entry.event in (JobRecord.STARTED, JobRecord.FINISHED),
     "errors": lambda entry: entry.level != "INFO" or _failed(entry),
 }
 
 
 class ReadJournalRequest(ToolRequest):
-    kind: Literal["all", "phrases", "tools", "errors", "episodes"] = Field(
+    kind: Literal["all", "phrases", "tools", "jobs", "errors", "episodes"] = Field(
         default="all",
         description=(
             "Что показать: «phrases» — фразы и ответы на них, «tools» — вызовы ручек, «errors» — только неудачи, "
+            "«jobs» — фоновые работы (скачивание, расшифровка, отправка файла, прогон плана): запуск и итог с файлом, "
             "«all» — всё подряд, «episodes» — каждая фраза вместе с вызовами ручек, сделанными для неё: так видно, "
             "что было названо и что после этого сработало."
         ),
@@ -108,7 +111,8 @@ class ReadJournal(Tool[ReadJournalRequest]):
             '{"ok": true, "now": текущее время, "entries": [...] — от старых к новым, "found": сколько записей '
             'подошло всего}; found больше, чем пришло, — сузь фильтр или подними limit. У записи: time; event — '
             "phrase (фраза и ответ), tool (вызов ручки: tool, params, result), voice (что услышано или сбой записи), "
-            "dry_run (команда вхолостую), error; остальные поля — подробности события. При kind=episodes запись — "
+            "dry_run (команда вхолостую), job_started и job_finished (фоновая работа: job — её id, status — итог, "
+            "artifact — файл), error; остальные поля — подробности события. При kind=episodes запись — "
             "это фраза: time, phrase, status, message и calls — её вызовы по порядку (tool, params, ok или error)."
         ),
         refusals="invalid_parameters + problems.",

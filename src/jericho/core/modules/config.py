@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from jericho.core.agent.task import TaskLayer
 from jericho.core.conf.settings import Settings
+from jericho.core.jobs.background import BackgroundJobs
 from jericho.core.journal.protocols import JournalReader
 from jericho.core.management.base import Command
 from jericho.core.prompting.protocols import PromptContext
@@ -46,6 +47,13 @@ class ModuleServices:
     relaunch: Relaunch           # запустить команду ещё раз без человека рядом: так работают задачи по расписанию
     program: Program             # как запустить ассистента внешнему планировщику: таймеру systemd
     run_id: str = ""             # запуск этого поручения: им помечены его записи в журнале
+    jobs: BackgroundJobs | None = None      # фоновые работы и их продолжения (`then`): один узел на процесс
+
+    def background(self) -> BackgroundJobs:
+        """Узел фоновых работ; каркас собирает его всегда — нет только в тесте, который его не дал."""
+        if self.jobs is None:
+            raise RuntimeError("ModuleServices.jobs is not set: pass BackgroundJobs(...) when building module services in a test")
+        return self.jobs
 
 
 class ModuleConfig:

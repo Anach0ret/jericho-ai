@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -17,6 +17,11 @@ class ToolRequest(BaseModel):
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+    # Поля, которые в журнал вызова и в вопрос «да» каркаса не пишутся («скрыто: N знаков»), но личными данными
+    # не считаются: фраза после них не «читала личное» (`Tool.private`), ручку может вызвать и запасная модель.
+    # Так скрыто поручение `then` фоновой ручки — слова пользователя, а не чужая переписка (план 110, этап 3).
+    masked: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
     def tool_schema(cls) -> dict[str, Any]:

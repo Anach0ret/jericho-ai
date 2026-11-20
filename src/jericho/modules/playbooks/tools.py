@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import logging
+from typing import Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from jericho.core.services.confirmation import ConfirmationGate
 from jericho.core.services.foreign import ForeignText
@@ -20,7 +21,7 @@ from jericho.core.tools.result import ToolRefusal, ToolResult
 from jericho.core.tools.risk import Risk
 from jericho.core.tools.tool import Tool
 from jericho.modules.playbooks.entities import Playbook
-from jericho.modules.playbooks.shelf import PlaybookLimit, PlaybookShelf
+from jericho.modules.playbooks.shelf import PlaybookLimit, PlaybookLineMissing, PlaybookShelf
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,9 @@ def described(playbook: Playbook) -> dict[str, object]:
         "site": playbook.site,
         "text": playbook.text,
         "used": playbook.used.isoformat() if playbook.used else None,
-        "suggestions": [{"id": item.id, "text": item.text, "reason": item.reason} for item in playbook.suggestions],
+        "suggestions": [
+            {"id": item.id, "text": item.text, "reason": item.reason, "replaces": item.replaces} for item in playbook.suggestions
+        ],
     }
 
 
@@ -124,13 +127,32 @@ class WritePlaybook(Tool[WritePlaybookRequest]):
 
 class SuggestPlaybookRequest(ToolRequest):
     text: str = Field(
-        min_length=10, max_length=500,
-        description="Что дописать — готовой строкой памятки: «Кнопка отправки внизу — „Закончить попытку…“, не „Завершить“».",
+        default="", max_length=500,
+        description=(
+            "Новая строка памятки — такая, что подойдёт и в следующий раз: без названий сегодняшнего модуля, курса, "
+            "страницы и дат. «Ссылка на тест — label=\"тест для закреп\", near=\"AIM N\"», а не полное название "
+            "ссылки этого модуля. С replaces пусто — убрать строку."
+        ),
+    )
+    replaces: str = Field(
+        default="", max_length=500,
+        description=(
+            "Строка памятки дословно, если она неверна: text встанет на её место. Не дописывай новую строку поверх "
+            "неверной — замени её. Пусто — text дописывается в конец."
+        ),
     )
     reason: str = Field(min_length=3, max_length=200, description="Почему: что на деле было не так, как в памятке, или чего в ней не было.")
     playbook: str | None = Field(default=None, description="id памятки; не указан — предлагаешь новую, тогда нужны title и site.")
     title: str = Field(default="", max_length=80, description="Для новой памятки: что за дело.")
     site: str = Field(default="", max_length=100, pattern=SITE, description="Для новой памятки: сайт без https:// и www.")
+
+    @model_validator(mode="after")
+    def _something_to_change(self) -> Self:
+        if self.replaces and self.playbook is None:
+            raise ValueError("replaces: заменить строку можно только в существующей памятке — укажи playbook")
+        if not self.replaces and len(self.text.strip()) < 10:
+            raise ValueError("text: строка памятки — не короче 10 знаков (убрать строку — replaces без text)")
+        return self
 
 
 class SuggestPlaybook(Tool[SuggestPlaybookRequest]):
@@ -140,17 +162,22 @@ class SuggestPlaybook(Tool[SuggestPlaybookRequest]):
     description = ToolDescription(
         when=(
             "дело сделано, и ты узнал то, что в следующий раз сэкономит ходы: памятка ошиблась (кнопка называется "
-            "иначе, появилось окно), в ней не хватает шага, или памятки на это повторяющееся дело нет."
+            "иначе, появилось окно), в ней не хватает шага, или памятки на это повторяющееся дело нет. Только то, что "
+            "подойдёт в следующий раз, а не про сегодняшний модуль, курс или страницу."
         ),
         does=(
             "ставит предложение в очередь: пользователь примет его или отклонит кнопкой в окне. До этого памятка "
             "не меняется. Вопроса не задаёт — работает и в прогоне без человека."
         ),
         returns='{"ok": true, "suggested": id предложения, "playbook": id памятки}.',
-        refusals="playbooks_full + detail; playbook_not_found + playbooks; invalid_parameters + problems.",
+        refusals=(
+            "playbooks_full + detail; playbook_not_found + playbooks; line_not_found + lines — replaces не дословно: "
+            "возьми строку из lines; invalid_parameters + problems."
+        ),
     )
 
     NEEDS_TITLE = "title_required"
+    LINE_NOT_FOUND = "line_not_found"
 
     def __init__(self, shelf: PlaybookShelf) -> None:
         self._shelf = shelf
@@ -161,11 +188,17 @@ class SuggestPlaybook(Tool[SuggestPlaybookRequest]):
         elif len(request.title) < 3:
             raise ToolRefusal(self.NEEDS_TITLE)
         try:
-            playbook = self._shelf.suggest(request.text, request.reason, request.playbook, request.title, request.site)
+            playbook = self._shelf.suggest(
+                request.text, request.reason, request.playbook, request.title, request.site, request.replaces,
+            )
         except PlaybookLimit as error:
             raise ToolRefusal(TOO_MUCH, detail=str(error)) from error
+        except PlaybookLineMissing as error:
+            raise ToolRefusal(self.LINE_NOT_FOUND, detail=str(error), lines=error.lines) from error
         suggestion = playbook.suggestions[-1]
-        logger.info("playbook_suggested", extra={"data": {"id": playbook.id, "suggestion": suggestion.id, "text": suggestion.text}})
+        logger.info("playbook_suggested", extra={"data": {
+            "id": playbook.id, "suggestion": suggestion.id, "text": suggestion.text, "replaces": suggestion.replaces,
+        }})
         return ToolResult.success(suggested=suggestion.id, playbook=playbook.id)
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 from jericho.core.assembly.skills import SkillSet
@@ -56,7 +57,7 @@ def build_toolset(settings: Settings, skills: SkillSet, modules: InstalledModule
     # Ассистент без навыков — тоже ассистент (новый проект, ассистент на одних модулях): загружать ему нечего.
     names = skills.installed.names
     load_skill = (LoadSkill(skills.guides, session, names),) if names else ()
-    confirm = Confirm(state.gate, dispatcher, (*module_tools, *skill_tools), session)
+    confirm = Confirm(state.gate, dispatcher, (*module_tools, *skill_tools), session, partial(state.carried.restore, state.journal))
     tools = (*load_skill, confirm, *module_tools, *skill_tools)
     _check_unique(tools)
     state.tools.fill(tools, dispatcher)

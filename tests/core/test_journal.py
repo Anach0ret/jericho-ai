@@ -79,8 +79,21 @@ class TestJournalFile:
         JournalRotation(journal_file, max_bytes=300).rotate_if_full()
         logger.info("resolve", extra={"data": {"query": "после смены"}})
 
-        assert [entry.details["query"] for entry in JsonLinesLogReader(journal_file).tail(10)] == ["после смены"]
+        assert "после смены" in journal_file.read_text(encoding="utf-8") and "x" * 250 not in journal_file.read_text(encoding="utf-8")
         assert "x" * 250 in journal_file.with_name("journal.jsonl.1").read_text(encoding="utf-8")
+
+    def test_tail_reads_through_replaced_files(self, journal_file: Path) -> None:
+        """Сразу после смены в текущем файле почти пусто: итог работы и запуск фразы — в `.1`, `.2` (ревью 111, home №1)."""
+        journal_file.parent.mkdir(parents=True)
+        for number in range(3):
+            with journal_file.open("a", encoding="utf-8") as file:
+                file.write(f'{{"time": "2026-11-20T12:00:00+00:00", "event": "e{number}"}}\n')
+            JournalRotation(journal_file, max_bytes=1).rotate_if_full()
+        with journal_file.open("a", encoding="utf-8") as file:
+            file.write('{"time": "2026-11-20T12:00:00+00:00", "event": "e3"}\n')
+
+        assert [entry.event for entry in JsonLinesLogReader(journal_file).tail(3)] == ["e1", "e2", "e3"]
+        assert [entry.event for entry in JsonLinesLogReader(journal_file).tail(10)] == ["e0", "e1", "e2", "e3"]
 
     def test_file_that_is_not_full_stays(self, journal_file: Path) -> None:
         LoggingConfigurator(journal_file, "run-1", LOGGER_NAME).configure()

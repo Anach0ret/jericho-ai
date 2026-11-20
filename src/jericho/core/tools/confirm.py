@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -51,12 +51,16 @@ class Confirm(Tool[ConfirmRequest]):
     )
 
     def __init__(
-        self, gate: ConfirmationGate, dispatcher: ToolDispatcher, tools: Sequence[Tool[Any]], session: CallSession
+        self, gate: ConfirmationGate, dispatcher: ToolDispatcher, tools: Sequence[Tool[Any]], session: CallSession,
+        asked_context: Callable[[str], None] = lambda _run: None,
     ) -> None:
         self._gate = gate
         self._dispatcher = dispatcher
         self._tools = {tool.name: tool for tool in tools}
         self._session = session
+        # Контекст фразы, задавшей вопрос (по её запуску): «да» на шаг продолжения идёт тем же звеном цепочки и с тем,
+        # что читалось до вопроса, а не с чистого листа (ревью 111, №3).
+        self._asked_context = asked_context
 
     def _run(self, request: ConfirmRequest) -> ToolResult:
         if self._gate.waiting_for_yes():
@@ -73,6 +77,7 @@ class Confirm(Tool[ConfirmRequest]):
             )
         if tool.skill:
             self._session.load(tool.skill)
+        self._asked_context(pending.asked_by)
         result = self._dispatcher.call(tool, pending.arguments)
         return replace(result, data={**result.data, "confirmed": tool.name})
 

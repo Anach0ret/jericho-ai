@@ -11,6 +11,7 @@ from pathlib import Path
 from jericho.core.agent.active_backend import ActiveBackend
 from jericho.core.assembly.installation import Installation
 from jericho.core.conf.settings import Settings
+from jericho.core.jobs.carried import CarriedContext
 from jericho.core.journal.adapters.jsonl import JournalRotation, JsonLinesLogReader, LoggingConfigurator
 from jericho.core.journal.protocols import JournalReader
 from jericho.core.journal.reply_vault import ReplyVault
@@ -48,11 +49,13 @@ class State:
     gate: ConfirmationGate
     journal: JournalReader
     session: CallSession                # что произошло в этом поручении; живёт столько же, сколько процесс
+    carried: CarriedContext             # контекст, перенесённый в эту фразу: продолжение работы или «да» на его шаг
     tools: ToolCatalog                  # все ручки ассистента; заполняет участок «ручки»
     services: CoreServices              # то, что ядро выдаёт навыкам
     active_backend: ActiveBackend       # кто из бэкендов ведёт фразу: в сервере ручек — из окружения
     user: str = ""                      # чьё поручение (`JERICHO_USER`); пусто — ассистент одного человека
     phrase_deadline: PhraseDeadline = field(default_factory=PhraseDeadline)    # срок фразы: в сервере ручек — из окружения
+    inherited: bool = False             # запуск получен от фразы (сервер ручек), а не начат этим процессом
 
 
 def build_state(settings: Settings, installation: Installation) -> State:
@@ -73,18 +76,21 @@ def build_state(settings: Settings, installation: Installation) -> State:
         clock=Clock(settings.timezone), secrets=_secrets(settings, installation), user=installation.user,
         own_paths=_own_paths(settings, installation, files.paths),
     )
+    session = CallSession()
     return State(
         files=files,
         run_id=run_id,
         confirmations=confirmations,
         gate=gate,
         journal=JsonLinesLogReader(files.journal),
-        session=CallSession(),
+        session=session,
+        carried=CarriedContext(session, services.foreign),
         tools=ToolCatalog(),
         services=services,
         active_backend=ActiveBackend.from_environment(installation.environment),
         user=installation.user,
         phrase_deadline=PhraseDeadline.from_environment(installation.environment, settings.agent.timeout),
+        inherited=bool(inherited_run),
     )
 
 

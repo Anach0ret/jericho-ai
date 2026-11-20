@@ -69,8 +69,13 @@ class Tool[RequestT: ToolRequest](ABC):
 
         Личные поля — скрыты: вопрос попадает в журнал и в напоминания.
         """
-        shown = PrivateFields(self.private).mask(arguments)
+        shown = PrivateFields(self.masked).mask(arguments)
         return f"{self.name} {json.dumps(shown, ensure_ascii=False, sort_keys=True)}"
+
+    @property
+    def masked(self) -> tuple[str, ...]:
+        """Поля параметров, скрытые в журнале и в вопросе «да»: личные (`private`) и скрытые запросом (`ToolRequest.masked`)."""
+        return (*self.private, *self.request_type.masked)
 
     def private_in(self, result: ToolResult) -> tuple[str, ...]:
         """Какие поля этого ответа личные. Обычно — `private`; ручка, отдающая ответ другой (`confirm`), — её поля."""

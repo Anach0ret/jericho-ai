@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterator
 from datetime import datetime
 from logging.handlers import RotatingFileHandler, WatchedFileHandler
 from pathlib import Path
@@ -120,10 +121,23 @@ class JsonLinesLogReader:
         self._path = path
 
     def tail(self, limit: int) -> list[JournalEntry]:
-        if not self._path.exists():
-            return []
-        lines = self._path.read_text(encoding="utf-8").splitlines()[-limit:]
-        return [entry for entry in map(self._parse, lines) if entry is not None]
+        """Последние `limit` строк — и через смену файла: сразу после неё в текущем почти пусто, а итог работы или
+        запуск фразы остались в `journal.jsonl.1` (ревью 111, home №1)."""
+        lines: list[str] = []
+        for path in self._files():
+            if len(lines) >= limit:
+                break
+            lines = path.read_text(encoding="utf-8").splitlines() + lines
+        return [entry for entry in map(self._parse, lines[-limit:] if limit > 0 else []) if entry is not None]
+
+    def _files(self) -> Iterator[Path]:
+        """Текущий файл, потом сменённые от новых к старым: `.1` — предыдущий (имена `RotatingFileHandler`)."""
+        if self._path.exists():
+            yield self._path
+        number = 1
+        while (older := self._path.with_name(f"{self._path.name}.{number}")).exists():
+            yield older
+            number += 1
 
     def _parse(self, line: str) -> JournalEntry | None:
         try:

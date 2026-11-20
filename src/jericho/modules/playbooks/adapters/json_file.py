@@ -32,7 +32,7 @@ class JsonPlaybookStore:
             "created": playbook.created.isoformat(),
             "used": playbook.used.isoformat() if playbook.used else None,
             "suggestions": [
-                {"id": item.id, "text": item.text, "reason": item.reason, "created": item.created.isoformat()}
+                {"id": item.id, "text": item.text, "reason": item.reason, "created": item.created.isoformat(), "replaces": item.replaces}
                 for item in playbook.suggestions
             ],
         }
@@ -48,7 +48,10 @@ class JsonPlaybookStore:
                 created=datetime.fromisoformat(record["created"]),
                 used=datetime.fromisoformat(record["used"]) if record["used"] else None,
                 suggestions=tuple(
-                    Suggestion(item["id"], item["text"], item["reason"], datetime.fromisoformat(item["created"]))
+                    Suggestion(
+                        item["id"], item["text"], item["reason"], datetime.fromisoformat(item["created"]),
+                        item.get("replaces", ""),     # записи до 0.65.2 — без замены, дополнение в конец
+                    )
                     for item in record["suggestions"]
                 ),
             )

@@ -17,6 +17,14 @@ class PlaybookLimit(Exception):
     """Полка не вмещает: слишком много памяток, предложений или текста. Сообщение — для человека и модели."""
 
 
+class PlaybookLineMissing(Exception):
+    """Строки, которую предложение заменяет, в памятке нет. `lines` — строки памятки, чтобы взять нужную дословно."""
+
+    def __init__(self, message: str, lines: list[str]) -> None:
+        super().__init__(message)
+        self.lines = lines
+
+
 class PlaybookShelf:
     """Свой замок нужен: окно на панели принимает и отклоняет дополнения, пока идёт фраза, а замок фразы его не
     охватывает. Каждое изменение — под замком списка и над свежими памятками по id (`LockedList`): раньше
@@ -51,8 +59,11 @@ class PlaybookShelf:
             self._put(playbooks, playbook)
         return playbook
 
-    def suggest(self, text: str, reason: str, playbook_id: str | None = None, title: str = "", site: str = "") -> Playbook:
-        """Дополнение к памятке или новая памятка — до «Принять» человека модель её не видит."""
+    def suggest(
+        self, text: str, reason: str, playbook_id: str | None = None, title: str = "", site: str = "", replaces: str = "",
+    ) -> Playbook:
+        """Дополнение к памятке или новая памятка — до «Принять» человека модель её не видит. С `replaces` — замена
+        или удаление строки: строка проверяется сразу, по свежей памятке."""
         with self._playbooks.changing() as playbooks:
             old = self._by_id(playbooks, playbook_id) if playbook_id else None
             if old is None:
@@ -60,19 +71,21 @@ class PlaybookShelf:
                 old = Playbook(short_id(self._taken(playbooks)), title, site, "", self._now())
             if len(old.suggestions) >= self._suggestion_limit:
                 raise PlaybookLimit(f"к памятке «{old.title}» уже {self._suggestion_limit} непринятых предложений")
-            playbook = old.with_suggestion(Suggestion(short_id(self._taken(playbooks)), text, reason, self._now()))
+            if replaces:
+                self._line_index(old.text, replaces)
+            suggestion = Suggestion(short_id(self._taken(playbooks)), text, reason, self._now(), replaces)
+            playbook = old.with_suggestion(suggestion)
             self._put(playbooks, playbook)
         return playbook
 
     def accept(self, suggestion_id: str) -> Playbook | None:
-        """Принятое дописывается в конец памятки; у новой становится её текстом."""
+        """Принятое дописывается в конец памятки (у новой становится её текстом) или заменяет свою строку."""
         with self._playbooks.changing() as playbooks:
             found = self._holding(playbooks, suggestion_id)
             if found is None:
                 return None
             playbook, suggestion = found
-            text = f"{playbook.text}\n{suggestion.text}" if playbook.text else suggestion.text
-            accepted = replace(playbook.without(suggestion_id), text=self._fitting(text))
+            accepted = replace(playbook.without(suggestion_id), text=self._fitting(self._revised(playbook.text, suggestion)))
             self._put(playbooks, accepted)
         return accepted
 
@@ -100,6 +113,28 @@ class PlaybookShelf:
         и у свежей записи: переданный объект мог устареть, пока его показывали."""
         with self._playbooks.changing() as playbooks:
             playbooks[:] = [replace(other, used=self._now()) if other.id == playbook.id else other for other in playbooks]
+
+    @classmethod
+    def _revised(cls, text: str, suggestion: Suggestion) -> str:
+        if not suggestion.replaces:
+            return f"{text}\n{suggestion.text}" if text else suggestion.text
+        lines = text.splitlines()
+        index = cls._line_index(text, suggestion.replaces)
+        return "\n".join([*lines[:index], *([suggestion.text] if suggestion.text else []), *lines[index + 1:]])
+
+    @staticmethod
+    def _line_index(text: str, line: str) -> int:
+        """Номер строки памятки, совпадающей дословно (без пробелов по краям). Нет — `PlaybookLineMissing`: памятку
+        успели поменять или строку взяли не дословно."""
+        lines = text.splitlines()
+        wanted = line.strip()
+        for index, candidate in enumerate(lines):
+            if candidate.strip() == wanted:
+                return index
+        raise PlaybookLineMissing(
+            f"строки «{wanted[:80]}» в памятке нет: возьми строку дословно из памятки — или, если памятку поменяли, отклони предложение",
+            [candidate for candidate in lines if candidate.strip()],
+        )
 
     @staticmethod
     def _by_id(playbooks: list[Playbook], playbook_id: str | None) -> Playbook | None:
